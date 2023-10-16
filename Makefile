@@ -25,13 +25,13 @@ all: ./twmailer-server ./twmailer-client
 
 clean:
 	clear
-	rm -f bin/* obj/*
+	rm -f twmailer-*
 
-./obj/myclient.o: myclient.c
-	${CC} ${CFLAGS} -o obj/myclient.o myclient.c -c
+./obj/myclient.o: myclient.cpp
+	${CC} ${CFLAGS} -o obj/myclient.o myclient.cpp -c
 
-./obj/myserver.o: myserver.c
-	${CC} ${CFLAGS} -o obj/myserver.o myserver.c -c 
+./obj/myserver.o: myserver.cpp
+	${CC} ${CFLAGS} -o obj/myserver.o myserver.cpp -c 
 
 ./twmailer-server: ./obj/myserver.o
 	${CC} ${CFLAGS} -o twmailer-server obj/myserver.o

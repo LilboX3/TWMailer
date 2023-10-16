@@ -26,11 +26,17 @@ void signalHandler(int sig);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-int main(void)
+int main(int argc, char **argv)
 {
    socklen_t addrlen;
    struct sockaddr_in address, cliaddress;
    int reuseValue = 1;
+
+   if(argc != 3){
+      argv = argv;
+      perror("Usage: ./twmailer-server <port> <mail-spool-directoryname>");
+      return EXIT_FAILURE;
+   }
 
    ////////////////////////////////////////////////////////////////////////////
    // SIGNAL HANDLER
