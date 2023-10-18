@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <sstream>
 #include <iostream>
+#include <sys/stat.h>
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -27,6 +28,7 @@ int new_socket = -1;
 void *clientCommunication(void *data);
 void signalHandler(int sig);
 int processSend(int client_socket);
+int createMailSpool(string dirName);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -49,9 +51,13 @@ int main(int argc, char **argv)
       perror("Invalid port - not a number");
       return EXIT_FAILURE;
    }
+
    //mail directory name
-   string directory = argv[1];
-   
+   string directory = argv[2];
+   if(createMailSpool(directory)==-1){
+      perror("Cannot create mail spool directory");
+      return EXIT_FAILURE;
+   }
 
    ////////////////////////////////////////////////////////////////////////////
    // SIGNAL HANDLER
@@ -311,29 +317,40 @@ int processSend(int client_socket){
    //Get sender of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    sender = buffer;
+   memset(buffer, 0, BUF);
 
    //Get receiver of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    receiver = buffer;
+   memset(buffer, 0, BUF);
 
    //Get subject of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    subject = buffer;
+   memset(buffer, 0, BUF);
 
    //Get message
    while(true){
       recv(client_socket, buffer, sizeof(buffer), 0);
+      if(buffer[0]=='.'){
+         break;
+      }
       
-      cout << "BUFFER CONTENT IS: ";
       for(int i=0;i<(int)strlen(buffer);i++){
          cout << buffer[i];
       }
-      if(strcmp(buffer, ".\n")==0){
-         break;
-      }
-      message += buffer;
+      cout << "\nEND" << endl;
+      message += buffer+'\n';
+      memset(buffer, 0, BUF);
    }
 
-   cout << "Message from: "+ sender + " to: "+ receiver + "\nSubject: "+subject+"\n Message: "<< endl;
+   cout << "Message from: "+ sender + " to: "+ receiver + "\nSubject: "+subject+"\n Message: "+message<< endl;
    return 1;    
+}
+
+int createMailSpool(string dirName){
+   if (mkdir(dirName.c_str(), 0777) != 0) { 
+    return -1; 
+  }
+  return 0;
 }
