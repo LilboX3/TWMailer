@@ -31,7 +31,7 @@ int main(int argc, char **argv)
    int isQuit = 0;
 
    if(argc != 3){
-      perror("Usage: ./twmailer-client <ip> <port>");
+      cerr << "Usage: ./twmailer-client <ip> <port>";
       return EXIT_FAILURE;
    }
 

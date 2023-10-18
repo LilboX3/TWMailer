@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 
    if(argc != 3){
       argv = argv;
-      perror("Usage: ./twmailer-server <port> <mail-spool-directoryname>");
+      cerr << "Usage: ./twmailer-server <port> <mail-spool-directoryname>";
       return EXIT_FAILURE;
    }
 
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
    std::istringstream iss(argv[1]);
    int port;
    if(!(iss >> port)){
-      perror("Invalid port - not a number");
+      cerr << "Invalid port - not a number";
       return EXIT_FAILURE;
    }
 
