@@ -445,7 +445,7 @@ int writeUserFile(string username, string sender, string subject, string message
 */
 
 // ./twmailer-server 1234 Reciever
-// ./twmailer-client 127.0.0.1 1234
+// ./twmailer-client 127.0.0.1 1234 port kann alles sein muss einfach nur matchen
 
 int processList(int client_socket) {
    char buffer[BUF];

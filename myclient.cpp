@@ -38,7 +38,7 @@ int main(int argc, char **argv)
    std::istringstream iss(argv[2]);
    int port;
    if(!(iss >> port)){
-      perror("Invalid port - not a number");
+      cerr << "Invalid port - not a number";
       return EXIT_FAILURE;
    }
    ////////////////////////////////////////////////////////////////////////////
