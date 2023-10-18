@@ -249,6 +249,13 @@ void *clientCommunication(void *data)
                   perror("send answer failed");
                   return NULL;
                }
+         } else {
+            //send error if it didnt work
+            if (send(*current_socket, "ERR", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
          }
       }
       else if(strcmp(buffer, "LIST")==0){
@@ -372,7 +379,8 @@ int processSend(int client_socket){
          break;
       }
 
-      message += buffer+'\n';
+      message += buffer;
+      message +="\n";
       memset(buffer, 0, BUF);
    }
 
@@ -409,10 +417,10 @@ int writeUserFile(string username, string sender, string subject, string message
       return -1;
    }
 
+   file << "\nMESSAGE\n";
    file << sender+"\n";
    file << subject+"\n";
    file << message+"\n";
-   file << "END\n";
    file.close();
    return 0;
 }
