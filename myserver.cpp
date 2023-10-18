@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <sstream>
+#include <iostream>
+using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +40,17 @@ int main(int argc, char **argv)
       perror("Usage: ./twmailer-server <port> <mail-spool-directoryname>");
       return EXIT_FAILURE;
    }
+
+   //get port from console argument: convert to int
+   std::istringstream iss(argv[1]);
+   int port;
+   if(!(iss >> port)){
+      perror("Invalid port - not a number");
+      return EXIT_FAILURE;
+   }
+   //mail directory name
+   string directory = argv[1];
+   
 
    ////////////////////////////////////////////////////////////////////////////
    // SIGNAL HANDLER
@@ -91,7 +105,7 @@ int main(int argc, char **argv)
    memset(&address, 0, sizeof(address));
    address.sin_family = AF_INET;
    address.sin_addr.s_addr = INADDR_ANY;
-   address.sin_port = htons(PORT);
+   address.sin_port = htons(port);
 
    ////////////////////////////////////////////////////////////////////////////
    // ASSIGN AN ADDRESS WITH PORT TO SOCKET
