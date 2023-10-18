@@ -465,12 +465,23 @@ int processList(int client_socket) {
         string line;
         int messageNumber = 0; // Track the message number
         while (getline(userFile, line)) {
+
+         cout << messageNumber << ".Line, start: vvvvvv"<< endl;
+         cout << line << endl;
+
             if (line == "MESSAGE") {
                 string sender, subject, message;
                 getline(userFile, sender);
+                cout << messageNumber << ".Line, 1. sender: vvvvvv"<< endl;
+               cout << sender << endl;
                 getline(userFile, subject);
+                cout << messageNumber << ".Line, 2. subject: vvvvvv"<< endl;
+               cout << subject << endl;
+
                 string messageLine;
                 while (getline(userFile, messageLine)) {
+                  cout << messageNumber << ".Line, BIG MESSAGE: vvvvvv"<< endl;
+                  cout << messageLine << endl;
                     if (messageLine.empty()) {
                         break;
                     }

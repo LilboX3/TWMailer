@@ -147,7 +147,13 @@ int main(int argc, char **argv)
          // solution 2: add an infrastructure component for messaging (broker)
          //
          if(!isQuit){
+
             size = recv(create_socket, buffer, BUF - 1, 0);
+            while(true){
+               if(strcmp("OK", buffer)==0||strcmp("ERR", buffer)==0){
+                  printf("<< %s\n", buffer);
+                  break;
+               }
             if (size == -1)
             {
                perror("recv error");
@@ -161,12 +167,14 @@ int main(int argc, char **argv)
             else
             {
                buffer[size] = '\0';
-               printf("<< %s\n", buffer); // ignore error
+               printf("%s\n", buffer); // ignore error
                /*if (strcmp("OK", buffer) != 0)
                {
                   fprintf(stderr, "<< Server error occured, abort\n");
                   break;
                }*/
+            }
+            size = recv(create_socket, buffer, BUF - 1, 0);
             }
          }
    } while (!isQuit);
