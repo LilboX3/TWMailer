@@ -171,7 +171,7 @@ void *clientCommunication(void *data)
 
    ////////////////////////////////////////////////////////////////////////////
    // SEND welcome message
-   strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands...\r\n");
+   strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands: \n SEND, LIST, READ, DEL, QUIT...\r\n");
    if (send(*current_socket, buffer, strlen(buffer), 0) == -1)
    {
       perror("send failed");
@@ -214,6 +214,15 @@ void *clientCommunication(void *data)
 
       buffer[size] = '\0';
       printf("Message received: %s\n", buffer); // ignore error
+
+      // --------> server does not respond to quitting
+      if(strcmp(buffer, "QUIT")==0){
+         if (send(*current_socket, "", 3, 0) == -1)
+      {
+         perror("send answer failed");
+         return NULL;
+      }
+      }
 
       if (send(*current_socket, "OK", 3, 0) == -1)
       {
