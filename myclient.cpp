@@ -124,6 +124,11 @@ int main(int argc, char **argv)
       }
       else if(command=="QUIT"){
          isQuit = 1;
+         if ((send(create_socket, "QUIT", 4, 0)) == -1) 
+            {
+               perror("send error");
+               return -1;
+            }
       } else {
          cout << "No valid command!" << endl;
          continue;
@@ -227,13 +232,13 @@ int sendCommand(int socket){
     std::cout << "Message (end with '.' on new line.):\n";
     while (true) {
         getline(cin, message);
-        if (message == ".")
-            break;
         if ((send(socket, message.c_str(), message.size(), 0)) == -1) 
          {
             perror("send error");
             return -1;
          }
+         if (message == ".")
+            break;
     }
    
    return 1;

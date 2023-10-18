@@ -26,6 +26,7 @@ int new_socket = -1;
 
 void *clientCommunication(void *data);
 void signalHandler(int sig);
+int processSend(int client_socket);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -215,7 +216,7 @@ void *clientCommunication(void *data)
          printf("Client closed remote socket\n"); // ignore error
          break;
       }
-
+      
       // remove ugly debug message, because of the sent newline of client
       if (buffer[size - 2] == '\r' && buffer[size - 1] == '\n')
       {
@@ -227,23 +228,21 @@ void *clientCommunication(void *data)
       }
 
       buffer[size] = '\0';
+
       printf("Message received: %s\n", buffer); // ignore error
+      if(strcmp(buffer, "SEND")==0){
+         if(processSend(*current_socket)!=-1){
+            if (send(*current_socket, "OK", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+         }
+      }
 
-      // --------> server does not respond to quitting
-      if(strcmp(buffer, "QUIT")==0){
-         if (send(*current_socket, "", 3, 0) == -1)
-      {
-         perror("send answer failed");
-         return NULL;
-      }
-      }
+      
 
-      if (send(*current_socket, "OK", 3, 0) == -1)
-      {
-         perror("send answer failed");
-         return NULL;
-      }
-   } while (strcmp(buffer, "quit") != 0 && !abortRequested);
+   } while (strcmp(buffer, "QUIT") != 0 && !abortRequested);
 
    // closes/frees the descriptor if not already
    if (*current_socket != -1)
@@ -303,4 +302,38 @@ void signalHandler(int sig)
    {
       exit(sig);
    }
+}
+
+int processSend(int client_socket){
+   char buffer[BUF];
+   string sender, receiver, subject, message;
+
+   //Get sender of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   sender = buffer;
+
+   //Get receiver of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   receiver = buffer;
+
+   //Get subject of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   subject = buffer;
+
+   //Get message
+   while(true){
+      recv(client_socket, buffer, sizeof(buffer), 0);
+      
+      cout << "BUFFER CONTENT IS: ";
+      for(int i=0;i<(int)strlen(buffer);i++){
+         cout << buffer[i];
+      }
+      if(strcmp(buffer, ".\n")==0){
+         break;
+      }
+      message += buffer;
+   }
+
+   cout << "Message from: "+ sender + " to: "+ receiver + "\nSubject: "+subject+"\n Message: "<< endl;
+   return 1;    
 }
