@@ -32,7 +32,7 @@ void signalHandler(int sig);
 int processSend(int client_socket);
 int createMailSpool(string dirName);
 int writeUserFile(string username, string sender, string subject, string message);
-void processList(int client_socket, const string& username);
+int processList(int client_socket);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -260,13 +260,19 @@ void *clientCommunication(void *data)
          }
       }
       else if (strcmp(buffer, "LIST") == 0) {
-         if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
-            buffer[size] = '\0';
-            string username = buffer;
-            processList(*current_socket, username);
-         } else {
-            printf("Error receiving username for LIST command\n");
-            return NULL;
+         if(processList(*current_socket)!=-1){
+            if (send(*current_socket, "OK", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+         }  else {
+            //send error if it didnt work
+            if (send(*current_socket, "ERR", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
          }
       }
       else if(strcmp(buffer, "READ")==0){
@@ -283,6 +289,9 @@ void *clientCommunication(void *data)
                   return NULL;
                }
       }
+      else if(strcmp(buffer, "QUIT")==0){
+         cout << "Client is quitting" <<endl;
+      }
       else {
           if (send(*current_socket, "ERR", 3, 0) == -1)
                {
@@ -293,7 +302,7 @@ void *clientCommunication(void *data)
 
       
 
-   } while (strcmp(buffer, "QUIT") != 0 && !abortRequested);
+   } while (!abortRequested);
 
    // closes/frees the descriptor if not already
    if (*current_socket != -1)
@@ -438,7 +447,15 @@ int writeUserFile(string username, string sender, string subject, string message
 // ./twmailer-server 1234 Reciever
 // ./twmailer-client 127.0.0.1 1234
 
-void processList(int client_socket, const string& username) {
+int processList(int client_socket) {
+   char buffer[BUF];
+   string username;
+
+   //Get sender of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   username = buffer;
+   memset(buffer, 0, BUF);
+
     printf("Listing messages for user: %s\n", username.c_str());
 
     // Open the user's file and read messages
@@ -471,5 +488,7 @@ void processList(int client_socket, const string& username) {
         userFile.close();
     } else {
         printf("User file not found for user: %s\n", username.c_str());
+        return -1;
     }
+    return 0;
 }
