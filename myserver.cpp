@@ -241,6 +241,7 @@ void *clientCommunication(void *data)
       buffer[size] = '\0';
 
       printf("Message received: %s\n", buffer); // ignore error
+
       if(strcmp(buffer, "SEND")==0){
          if(processSend(*current_socket)!=-1){
             if (send(*current_socket, "OK", 3, 0) == -1)
@@ -249,6 +250,34 @@ void *clientCommunication(void *data)
                   return NULL;
                }
          }
+      }
+      else if(strcmp(buffer, "LIST")==0){
+          if (send(*current_socket, "OK", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+      }
+      else if(strcmp(buffer, "READ")==0){
+          if (send(*current_socket, "OK", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+      }
+      else if(strcmp(buffer, "DEL")==0){
+          if (send(*current_socket, "OK", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+      }
+      else {
+          if (send(*current_socket, "ERR", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
       }
 
       
@@ -375,7 +404,7 @@ int writeUserFile(string username, string sender, string subject, string message
    string filename = username;
    string filepath = "./"+mailSpool+"/"+username;
    ofstream file;
-   file.open(filepath, ios::out);
+   file.open(filepath, ios::app);
    if(!file){
       return -1;
    }
@@ -383,7 +412,7 @@ int writeUserFile(string username, string sender, string subject, string message
    file << sender+"\n";
    file << subject+"\n";
    file << message+"\n";
-   file << "END";
+   file << "END\n";
    file.close();
    return 0;
 }
