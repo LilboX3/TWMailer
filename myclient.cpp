@@ -150,7 +150,7 @@ int main(int argc, char **argv)
 
             size = recv(create_socket, buffer, BUF - 1, 0);
             while(true){
-               if(strcmp("OK", buffer)==0||strcmp("ERR", buffer)==0){
+               if(strncmp("OK", buffer, 2)==0||strncmp("ERR", buffer, 3)==0){
                   printf("<< %s\n", buffer);
                   break;
                }

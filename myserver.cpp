@@ -33,6 +33,7 @@ int processSend(int client_socket);
 int createMailSpool(string dirName);
 int writeUserFile(string username, string sender, string subject, string message);
 int processList(int client_socket);
+int processRead(int client_socket);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -276,11 +277,20 @@ void *clientCommunication(void *data)
          }
       }
       else if(strcmp(buffer, "READ")==0){
-          if (send(*current_socket, "OK", 3, 0) == -1)
+         if(processRead(*current_socket)!=-1){
+            if (send(*current_socket, "OK", 3, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
                }
+         }  else {
+            //send error if it didnt work
+            if (send(*current_socket, "ERR", 3, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+         }
       }
       else if(strcmp(buffer, "DEL")==0){
           if (send(*current_socket, "OK", 3, 0) == -1)
@@ -466,22 +476,13 @@ int processList(int client_socket) {
         int messageNumber = 0; // Track the message number
         while (getline(userFile, line)) {
 
-         cout << messageNumber << ".Line, start: vvvvvv"<< endl;
-         cout << line << endl;
-
             if (line == "MESSAGE") {
                 string sender, subject, message;
                 getline(userFile, sender);
-                cout << messageNumber << ".Line, 1. sender: vvvvvv"<< endl;
-               cout << sender << endl;
                 getline(userFile, subject);
-                cout << messageNumber << ".Line, 2. subject: vvvvvv"<< endl;
-               cout << subject << endl;
 
                 string messageLine;
                 while (getline(userFile, messageLine)) {
-                  cout << messageNumber << ".Line, BIG MESSAGE: vvvvvv"<< endl;
-                  cout << messageLine << endl;
                     if (messageLine.empty()) {
                         break;
                     }
@@ -502,4 +503,29 @@ int processList(int client_socket) {
         return -1;
     }
     return 0;
+}
+
+int processRead(int client_socket){
+   char buffer[BUF];
+   string username, messageNr;
+
+   //Get username
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   username = buffer;
+   memset(buffer, 0, BUF);
+   //Get number of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   messageNr = buffer;
+   memset(buffer, 0, BUF);
+
+   //Check if number of message is in fact an int
+   char* p;
+   long converted = strtol(messageNr.c_str(), &p, 10);
+   if (*p) {
+      return -1;
+   }
+   int messageInt = converted;
+
+
+   return messageInt;
 }
