@@ -10,6 +10,7 @@
 #include <sstream>
 #include <iostream>
 #include <sys/stat.h>
+#include <fstream>
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22,6 +23,7 @@ using namespace std;
 int abortRequested = 0;
 int create_socket = -1;
 int new_socket = -1;
+string mailSpool;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +31,7 @@ void *clientCommunication(void *data);
 void signalHandler(int sig);
 int processSend(int client_socket);
 int createMailSpool(string dirName);
+int writeUserFile(string username, string sender, string subject, string message);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +57,8 @@ int main(int argc, char **argv)
 
    //mail directory name
    string directory = argv[2];
+   //set global varaible for mail spool directory
+   mailSpool = directory;
    if(createMailSpool(directory)==-1){
       perror("Cannot create mail spool directory");
       return EXIT_FAILURE;
@@ -311,6 +316,8 @@ void signalHandler(int sig)
 }
 
 int processSend(int client_socket){
+   ifstream file;
+   
    char buffer[BUF];
    string sender, receiver, subject, message;
 
@@ -335,13 +342,13 @@ int processSend(int client_socket){
       if(buffer[0]=='.'){
          break;
       }
-      
-      for(int i=0;i<(int)strlen(buffer);i++){
-         cout << buffer[i];
-      }
-      cout << "\nEND" << endl;
+
       message += buffer+'\n';
       memset(buffer, 0, BUF);
+   }
+
+   if(writeUserFile(receiver, sender, subject, message)==-1){
+      return -1;
    }
 
    cout << "Message from: "+ sender + " to: "+ receiver + "\nSubject: "+subject+"\n Message: "+message<< endl;
@@ -349,8 +356,40 @@ int processSend(int client_socket){
 }
 
 int createMailSpool(string dirName){
-   if (mkdir(dirName.c_str(), 0777) != 0) { 
-    return -1; 
-  }
+    // Path to the directory
+    string dir = "./"+dirName;
+    // Structure which would store the metadata
+    struct stat sb;
+
+   //only create mail spool directory with name if it doesnt exist yet
+   if(stat(dir.c_str(), &sb) != 0){
+      if (mkdir(dirName.c_str(), 0777) != 0) { 
+         return -1; 
+      }
+   }
+   
   return 0;
 }
+
+int writeUserFile(string username, string sender, string subject, string message){
+   string filename = username;
+   string filepath = "./"+mailSpool+"/"+username;
+   ofstream file;
+   file.open(filepath, ios::out);
+   if(!file){
+      return -1;
+   }
+
+   file << sender+"\n";
+   file << subject+"\n";
+   file << message+"\n";
+   file << "END";
+   file.close();
+   return 0;
+}
+
+/* TODO:
+--> Folder die schon existiert nicht createn
+--> File erstellen (nach user benannt) und darin content von SEND schreiben
+--> File in Folder speichern
+*/
