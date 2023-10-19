@@ -203,7 +203,7 @@ void *clientCommunication(void *data)
 
    ////////////////////////////////////////////////////////////////////////////
    // SEND welcome message
-   strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands: \n SEND, LIST, READ, DELE, QUIT...\r\n");
+   strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands: \n SEND, LIST, READ, DEL, QUIT...\r\n");
    if (send(*current_socket, buffer, strlen(buffer), 0) == -1)
    {
       perror("send failed");
@@ -296,7 +296,7 @@ void *clientCommunication(void *data)
                }
          }
       }
-      else if (strcmp(buffer, "DELE") == 0) {
+      else if (strcmp(buffer, "DEL") == 0) {
          if (processDel(*current_socket) != -1) {
             if (send(*current_socket, "<< OK", 6, 0) == -1) {
                   perror("send answer failed");

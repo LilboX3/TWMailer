@@ -118,7 +118,7 @@ int main(int argc, char **argv)
             continue;
         }
       }
-      else if(command=="DELE"){
+      else if(command=="DEL"){
          if(delCommand(create_socket) == -1){
             continue;
         }
@@ -297,7 +297,7 @@ int readCommand(int socket){
 }
 
 int delCommand(int socket){
-   if ((send(socket, "DELETE", 4, 0)) == -1) 
+   if ((send(socket, "DEL", 4, 0)) == -1) 
       {
          perror("send error");
          return -1;
