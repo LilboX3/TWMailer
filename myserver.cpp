@@ -11,6 +11,9 @@
 #include <iostream>
 #include <sys/stat.h>
 #include <fstream>
+#include <chrono>
+#include <thread>
+
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -96,7 +99,7 @@ int main(int argc, char **argv)
    // socket, level, optname, optvalue, optlen
    if (setsockopt(create_socket,
                   SOL_SOCKET,
-                  SO_REUSEADDR,
+                  SO_REUSEADDR, 
                   &reuseValue,
                   sizeof(reuseValue)) == -1)
    {

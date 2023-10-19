@@ -151,10 +151,12 @@ int main(int argc, char **argv)
 
             while(true){
                size = recv(create_socket, buffer, BUF - 1, 0);
-               if(strncmp("OK", buffer, 3)==0||strncmp("ERR", buffer, 4)==0){
+               //cout << "currently in buffer: --> "<<buffer << "-->END"<<endl;
+               /*if(strncmp("OK", buffer, 3)==0||strncmp("ERR", buffer, 4)==0){
                   printf("<< %s\n", buffer);
                   break;
-               }
+               }*/
+
             if (size == -1)
             {
                perror("recv error");
@@ -167,8 +169,21 @@ int main(int argc, char **argv)
             }
             else
             {
-               //buffer[size] = '\0';
+               buffer[size] = '\0';
                printf("%s\n", buffer);
+
+               //Buffer doesnt receive line by line: check if OK or ERR is contained anywhere in there.
+               char *output = NULL;
+               output = strstr (buffer,"OK");
+               if(output) {
+                  printf("<< OK\n");
+                  break;
+               }
+               output = strstr (buffer,"ERR");
+               if(output) {
+                  printf("<< ERR\n");
+                  break;
+               }
             }
             memset(buffer, 0, BUF);
             }
