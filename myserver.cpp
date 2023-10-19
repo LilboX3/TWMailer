@@ -34,6 +34,7 @@ int createMailSpool(string dirName);
 int writeUserFile(string username, string sender, string subject, string message);
 int processList(int client_socket);
 int processRead(int client_socket);
+int processDel(int client_socket);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -283,9 +284,9 @@ void *clientCommunication(void *data)
                   perror("send answer failed");
                   return NULL;
                }
-         }  else {
+         } else {
             //send error if it didnt work
-            if (send(*current_socket, "ERR", 3, 0) == -1)
+            if (send(*current_socket, "ERR", 4, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
@@ -471,6 +472,7 @@ int processList(int client_socket) {
     // Open the user's file and read messages
     string userFilename = "./" + mailSpool + "/" + username;
     ifstream userFile(userFilename.c_str());
+
     if (userFile.is_open()) {
         string line;
         int messageNumber = 0; // Track the message number
@@ -524,8 +526,56 @@ int processRead(int client_socket){
    if (*p) {
       return -1;
    }
-   int messageInt = converted;
+   int messageToFind = converted;
+   //Open file of user
+   string userFilename = "./" + mailSpool + "/" + username;
+   cout << "Trying to find: " << userFilename << endl;
+   ifstream userFile(userFilename.c_str());
+   if (userFile.is_open()) {
+      //find specific message
+      int messageNumber = 1;
+      string line;
+      while(getline(userFile, line)){
+         //Message found
+         if(line=="MESSAGE"&&messageNumber==messageToFind){
+            cout << "FOUND MESSAGE NUMBER "<<messageToFind << endl;
+            string sender, subject, message;
+                getline(userFile, sender);
+                getline(userFile, subject);
 
+                string messageLine;
+                while (getline(userFile, messageLine)) {
+                    if (messageLine.empty()) {
+                        break;
+                    }
+                    message += messageLine + "\n";
+                }
+                //Send the specific message to client
+                send(client_socket, sender.c_str(), sender.size(), 0);
+                send(client_socket, "\n", 1, 0);
+                send(client_socket, subject.c_str(), subject.size(), 0);
+                send(client_socket, "\n", 1, 0);
+                send(client_socket, message.c_str(), message.size(), 0);
+                return 0;
 
-   return messageInt;
+         } else if(line=="MESSAGE") {
+            messageNumber++;
+         }
+      }
+      //if message was not found
+      string errMsg = "Message nr. "+to_string(messageToFind)+" doesn't exist!\n";
+      send(client_socket, errMsg.c_str(), errMsg.size(), 0);
+      return -1;
+      userFile.close();
+   } else {
+      printf("User file not found for user: %s\n", username.c_str());
+      return -1;  
+   }
+
+   return 0;
 }
+
+/*int processDel(int client_socket){
+
+   return 0;
+}*/

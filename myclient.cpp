@@ -96,6 +96,7 @@ int main(int argc, char **argv)
       buffer[size] = '\0';
       printf("%s", buffer); // ignore error
    }
+   memset(buffer, 0, BUF);
 
    do
    {
@@ -148,9 +149,9 @@ int main(int argc, char **argv)
          //
          if(!isQuit){
 
-            size = recv(create_socket, buffer, BUF - 1, 0);
             while(true){
-               if(strncmp("OK", buffer, 2)==0||strncmp("ERR", buffer, 3)==0){
+               size = recv(create_socket, buffer, BUF - 1, 0);
+               if(strncmp("OK", buffer, 3)==0||strncmp("ERR", buffer, 4)==0){
                   printf("<< %s\n", buffer);
                   break;
                }
@@ -166,15 +167,10 @@ int main(int argc, char **argv)
             }
             else
             {
-               buffer[size] = '\0';
-               printf("%s\n", buffer); // ignore error
-               /*if (strcmp("OK", buffer) != 0)
-               {
-                  fprintf(stderr, "<< Server error occured, abort\n");
-                  break;
-               }*/
+               //buffer[size] = '\0';
+               printf("%s\n", buffer);
             }
-            size = recv(create_socket, buffer, BUF - 1, 0);
+            memset(buffer, 0, BUF);
             }
          }
    } while (!isQuit);
