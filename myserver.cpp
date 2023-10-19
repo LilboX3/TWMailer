@@ -250,14 +250,14 @@ void *clientCommunication(void *data)
 
       if(strcmp(buffer, "SEND")==0){
          if(processSend(*current_socket)!=-1){
-            if (send(*current_socket, "OK", 3, 0) == -1)
+            if (send(*current_socket, "<< OK", 6, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
                }
          } else {
             //send error if it didnt work
-            if (send(*current_socket, "ERR", 3, 0) == -1)
+            if (send(*current_socket, "<< ERR", 7, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
@@ -266,14 +266,14 @@ void *clientCommunication(void *data)
       }
       else if (strcmp(buffer, "LIST") == 0) {
          if(processList(*current_socket)!=-1){
-            if (send(*current_socket, "OK", 3, 0) == -1)
+            if (send(*current_socket, "<< OK", 6, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
                }
          }  else {
             //send error if it didnt work
-            if (send(*current_socket, "ERR", 3, 0) == -1)
+            if (send(*current_socket, "<< ERR", 7, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
@@ -282,14 +282,14 @@ void *clientCommunication(void *data)
       }
       else if(strcmp(buffer, "READ")==0){
          if(processRead(*current_socket)!=-1){
-            if (send(*current_socket, "OK", 3, 0) == -1)
+            if (send(*current_socket, "<< OK", 6, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
                }
          } else {
             //send error if it didnt work
-            if (send(*current_socket, "ERR", 4, 0) == -1)
+            if (send(*current_socket, "<< ERR", 7, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
@@ -297,7 +297,7 @@ void *clientCommunication(void *data)
          }
       }
       else if(strcmp(buffer, "DEL")==0){
-          if (send(*current_socket, "OK", 3, 0) == -1)
+          if (send(*current_socket, "<< OK", 6, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
@@ -308,7 +308,7 @@ void *clientCommunication(void *data)
          abortRequested = 1;//handled in signalHandler
       }
       else {
-          if (send(*current_socket, "ERR", 3, 0) == -1)
+          if (send(*current_socket, "<< ERR", 7, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;

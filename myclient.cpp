@@ -174,14 +174,14 @@ int main(int argc, char **argv)
 
                //Buffer doesnt receive line by line: check if OK or ERR is contained anywhere in there.
                char *output = NULL;
-               output = strstr (buffer,"OK");
+               output = strstr (buffer,"<< OK");
                if(output) {
-                  printf("<< OK\n");
+                  //printf("<< OK\n");
                   break;
                }
-               output = strstr (buffer,"ERR");
+               output = strstr (buffer,"<< ERR");
                if(output) {
-                  printf("<< ERR\n");
+                  //printf("<< ERR\n");
                   break;
                }
             }
