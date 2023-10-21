@@ -270,12 +270,27 @@ void *clientCommunication(void *data)
             return NULL;
          }
       }
-      else if(strcmp(buffer, "READ")==0){
-          if (send(*current_socket, "OK", 3, 0) == -1)
-               {
-                  perror("send answer failed");
+       else if (strcmp(buffer, "READ") == 0) {
+         // Receive the message number
+         if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
+            buffer[size] = '\0';
+            int messageNumber = atoi(buffer);
+
+            // Receive the username
+            if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
+                  buffer[size] = '\0';
+                  string username = buffer;
+
+                  // Call processRead with the message number and username
+                  processRead(*current_socket, username, messageNumber);
+            } else {
+                  printf("Error receiving the username for READ command\n");
                   return NULL;
-               }
+            } else {
+               printf("Error receiving message number for READ command\n");
+               return NULL;
+            }
+         
       }
       else if(strcmp(buffer, "DEL")==0){
           if (send(*current_socket, "OK", 3, 0) == -1)
@@ -473,4 +488,55 @@ void processList(int client_socket, const string& username) {
     } else {
         printf("User file not found for user: %s\n", username.c_str());
     }
+}
+
+void processRead(int client_socket, const string& username, int messageNumber) {
+    printf("Reading message %d for user: %s\n", messageNumber, username.c_str());
+
+    // Open the user's file and read messages
+    string userFilename = "./" + mailSpool + "/" + username;
+    ifstream userFile(userFilename.c_str());
+    if (userFile.is_open()) {
+        string line;
+        int currentMessage = 0; // Track the current message number
+        string sender, subject, message;
+        while (getline(userFile, line)) {
+            if (line == "MESSAGE") {
+                currentMessage++;
+                printf("Found MESSAGE. Current message number: %d\n", currentMessage);
+                if (currentMessage == messageNumber) {
+                    getline(userFile, sender);
+                    getline(userFile, subject);
+                    string messageLine;
+                    while (getline(userFile, messageLine)) {
+                        if (messageLine.empty()) {
+                            break;
+                        }
+                        message += messageLine + "\n";
+                    }
+
+                    // Send the message content to the client
+                    send(client_socket, "OK\n", 3, 0);
+                    send(client_socket, sender.c_str(), sender.size(), 0);
+                    send(client_socket, "\n", 1, 0);
+                    send(client_socket, subject.c_str(), subject.size(), 0);
+                    send(client_socket, "\n", 1, 0);
+                    send(client_socket, message.c_str(), message.size(), 0);
+                    send(client_socket, "\n", 1, 0);
+                    userFile.close();
+                    printf("Message sent to client successfully.\n");
+                    return;
+                }
+            }
+        }
+        userFile.close();
+    } else {
+        printf("User file not found for user: %s\n", username.c_str());
+        send(client_socket, "ERR\n", 4, 0);
+        printf("Sent 'ERR' response to client.\n");
+    }
+
+    // If the message number was not found, send an error response
+    send(client_socket, "ERR\n", 4, 0);
+    printf("Sent 'ERR' response to client.\n");
 }
