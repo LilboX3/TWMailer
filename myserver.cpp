@@ -259,8 +259,7 @@ void *clientCommunication(void *data)
                   return NULL;
                }
          }
-      }
-      else if (strcmp(buffer, "LIST") == 0) {
+      }else if (strcmp(buffer, "LIST") == 0) {
          if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
             buffer[size] = '\0';
             string username = buffer;
@@ -269,8 +268,7 @@ void *clientCommunication(void *data)
             printf("Error receiving username for LIST command\n");
             return NULL;
          }
-      }
-       else if (strcmp(buffer, "READ") == 0) {
+      }else if (strcmp(buffer, "READ") == 0) {
          // Receive the message number
          if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
             buffer[size] = '\0';
@@ -286,11 +284,11 @@ void *clientCommunication(void *data)
             } else {
                   printf("Error receiving the username for READ command\n");
                   return NULL;
-            } else {
-               printf("Error receiving message number for READ command\n");
-               return NULL;
             }
-         
+         } else {
+            printf("Error receiving message number for READ command\n");
+            return NULL;
+         }
       }
       else if(strcmp(buffer, "DEL")==0){
           if (send(*current_socket, "OK", 3, 0) == -1)
