@@ -32,6 +32,7 @@ void signalHandler(int sig);
 int processSend(int client_socket);
 int createMailSpool(string dirName);
 int writeUserFile(string username, string sender, string subject, string message);
+void processList(int client_socket, const string& username);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -258,12 +259,15 @@ void *clientCommunication(void *data)
                }
          }
       }
-      else if(strcmp(buffer, "LIST")==0){
-          if (send(*current_socket, "OK", 3, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
-               }
+      else if (strcmp(buffer, "LIST") == 0) {
+         if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
+            buffer[size] = '\0';
+            string username = buffer;
+            processList(*current_socket, username);
+         } else {
+            printf("Error receiving username for LIST command\n");
+            return NULL;
+         }
       }
       else if(strcmp(buffer, "READ")==0){
           if (send(*current_socket, "OK", 3, 0) == -1)
@@ -430,3 +434,42 @@ int writeUserFile(string username, string sender, string subject, string message
 --> File erstellen (nach user benannt) und darin content von SEND schreiben
 --> File in Folder speichern
 */
+
+// ./twmailer-server 1234 Reciever
+// ./twmailer-client 127.0.0.1 1234
+
+void processList(int client_socket, const string& username) {
+    printf("Listing messages for user: %s\n", username.c_str());
+
+    // Open the user's file and read messages
+    string userFilename = "./" + mailSpool + "/" + username;
+    ifstream userFile(userFilename.c_str());
+    if (userFile.is_open()) {
+        string line;
+        int messageNumber = 0; // Track the message number
+        while (getline(userFile, line)) {
+            if (line == "MESSAGE") {
+                string sender, subject, message;
+                getline(userFile, sender);
+                getline(userFile, subject);
+                string messageLine;
+                while (getline(userFile, messageLine)) {
+                    if (messageLine.empty()) {
+                        break;
+                    }
+                    message += messageLine + "\n";
+                }
+
+                // Send message number and subject to the client
+                messageNumber++; // Increment the message number
+                send(client_socket, to_string(messageNumber).c_str(), to_string(messageNumber).size(), 0);
+                send(client_socket, ". Subject: ", 11, 0); // Add a period to distinguish the subject
+                send(client_socket, subject.c_str(), subject.size(), 0);
+                send(client_socket, "\n", 1, 0); // Add a newline
+            }
+        }
+        userFile.close();
+    } else {
+        printf("User file not found for user: %s\n", username.c_str());
+    }
+}
