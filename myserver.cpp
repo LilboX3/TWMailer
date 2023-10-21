@@ -33,6 +33,7 @@ int processSend(int client_socket);
 int createMailSpool(string dirName);
 int writeUserFile(string username, string sender, string subject, string message);
 void processList(int client_socket, const string& username);
+void processRead(int client_socket, const string& username, int messageNumber);
 
 ///////////////////////////////////////////////////////////////////////////////
 
