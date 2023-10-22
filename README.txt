@@ -23,7 +23,7 @@ LIST: Use the LIST command to view all messages for a specific user. Simply inpu
 
 READ: If you want to read a particular message, use the READ command. Insert the user's name and the message number.
 
-DELETE: To remove a message, use the DELETE command. Specify the user's name and the message number to delete.
+DELETE: To remove a message, use the DEL command. Specify the user's name and the message number to delete.
 
 Quitting TwMailer
 When you're finished using TwMailer, you can exit the client using the QUIT command.
