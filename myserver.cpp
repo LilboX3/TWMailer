@@ -302,6 +302,7 @@ void *clientCommunication(void *data)
       }
       else if(strcmp(buffer, "QUIT")==0){
          cout << "Client is quitting" <<endl;
+         abortRequested = 1;//handled in signalHandler
       }
       else {
           if (send(*current_socket, "ERR", 3, 0) == -1)
