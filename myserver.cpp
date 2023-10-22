@@ -587,67 +587,76 @@ int processDel(int client_socket) {
    recv(client_socket, buffer, sizeof(buffer), 0);
    username = buffer;
    memset(buffer, 0, BUF);
-
    // Get number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    messageNr = buffer;
    memset(buffer, 0, BUF);
 
-   // Convert message number to an integer
-   int messageToDelete = std::stoi(messageNr);
-
-   // Open the user's file
-   string userFilename = "./" + mailSpool + "/" + username;
-   ifstream userFile(userFilename);
-
-   if (!userFile.is_open()) {
-      string errMsg = "User file not found for user: " + username + "\n";
-      send(client_socket, errMsg.c_str(), errMsg.size(), 0);
+   // Check if number of message is in fact an int
+   char *p;
+   long converted = strtol(messageNr.c_str(), &p, 10);
+   if (*p) {
       return -1;
    }
+   int messageToDelete = converted;
+   // Open file of user
+   string userFilename = "./" + mailSpool + "/" + username;
+   cout << "Trying to find: " << userFilename << endl;
+   ifstream userFile(userFilename.c_str());
+   if (userFile.is_open()) {
+      // Create a temporary file to rewrite the user's file
+      string tempFilename = "./" + mailSpool + "/temp_" + username;
+      ofstream tempFile(tempFilename.c_str());
 
-   string line;
-   int messageNumber = 1;
-   string newContent;
+      if (tempFile.is_open()) {
+         // Copy lines from the original file to the temporary file
+         int messageNumber = 1;
+         string line;
+         bool inMessage = false;
 
-   while (getline(userFile, line)) {
-      if (line == "MESSAGE") {
-         if (messageNumber != messageToDelete) {
-               // Keep the lines of the message except the one to delete
-               newContent += line + "\n";
-               while (getline(userFile, line) && !line.empty()) {
-                  newContent += line + "\n";
+         while (getline(userFile, line)) {
+               if (line == "MESSAGE") {
+                  inMessage = true;
+                  if (messageNumber == messageToDelete) {
+                     // Skip this message if it matches the one to be deleted
+                     while (getline(userFile, line) && !line.empty()) {
+                           // Skip the entire message
+                     }
+                     messageNumber++;
+                     continue;
+                  }
                }
-         } else {
-               // Skip the lines of the message to delete
-               while (getline(userFile, line) && !line.empty()) {
-                  continue;
+
+               if (inMessage) {
+                  if (line.empty()) {
+                     inMessage = false;
+                     messageNumber++;
+                  }
+               }
+
+               tempFile << line << "\n";
+         }
+
+         // Close both files
+         userFile.close();
+         tempFile.close();
+
+         // Remove the original file and rename the temporary file
+         if (remove(userFilename.c_str()) == 0) {
+               if (rename(tempFilename.c_str(), userFilename.c_str()) == 0) {
+                  string successMsg = "Message " + messageNr + " deleted successfully.\n";
+                  send(client_socket, successMsg.c_str(), successMsg.size(), 0);
+                  send(client_socket, "<< OK", 6, 0);
+                  return 0;
                }
          }
-         messageNumber++;
       }
-   }
 
-   // Close the user's file
-   userFile.close();
-
-   // Reopen the user's file for writing
-   ofstream newUserFile(userFilename);
-   if (!newUserFile.is_open()) {
-      cerr << "Error opening user file for writing." << endl;
+      send(client_socket, "<< ERR", 7, 0);
+   } else {
+      printf("User file not found for user: %s\n", username.c_str());
       return -1;
    }
 
-   // Write the updated content back to the user's file
-   newUserFile << newContent;
-
-   // Close the user's file
-   newUserFile.close();
-
-   // Send a success message
-   string successMsg = "Message " + messageNr + " deleted successfully.\n";
-   send(client_socket, successMsg.c_str(), successMsg.size(), 0);
-
-   return 0;
+   return -1;
 }
-
