@@ -515,28 +515,28 @@ int processRead(int client_socket){
    char buffer[BUF];
    string username, messageNr;
 
-   //Get username
+   //Gets username
    recv(client_socket, buffer, sizeof(buffer), 0);
    username = buffer;
    memset(buffer, 0, BUF);
-   //Get number of message
+   //Gets number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    messageNr = buffer;
    memset(buffer, 0, BUF);
 
-   //Check if number of message is in fact an int
+   //Checks if number of message is in fact an int
    char* p;
    long converted = strtol(messageNr.c_str(), &p, 10);
    if (*p) {
       return -1;
    }
    int messageToFind = converted;
-   //Open file of user
+   //Openss file of user
    string userFilename = "./" + mailSpool + "/" + username;
    cout << "Trying to find: " << userFilename << endl;
    ifstream userFile(userFilename.c_str());
    if (userFile.is_open()) {
-      //find specific message
+      //finds specific message
       int messageNumber = 1;
       string line;
       while(getline(userFile, line)){
@@ -583,33 +583,33 @@ int processDel(int client_socket) {
    char buffer[BUF];
    string username, messageNr;
 
-   // Get username
+   // Gets username
    recv(client_socket, buffer, sizeof(buffer), 0);
    username = buffer;
    memset(buffer, 0, BUF);
-   // Get number of message
+   // Gets number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    messageNr = buffer;
    memset(buffer, 0, BUF);
 
-   // Check if number of message is in fact an int
+   // Checks if number of message is in fact an int
    char *p;
    long converted = strtol(messageNr.c_str(), &p, 10);
    if (*p) {
       return -1;
    }
    int messageToDelete = converted;
-   // Open file of user
+   // Opens file of user
    string userFilename = "./" + mailSpool + "/" + username;
    cout << "Trying to find: " << userFilename << endl;
    ifstream userFile(userFilename.c_str());
    if (userFile.is_open()) {
-      // Create a temporary file to rewrite the user's file
+      // Creates a temporary file to rewrite the user's file
       string tempFilename = "./" + mailSpool + "/temp_" + username;
       ofstream tempFile(tempFilename.c_str());
 
       if (tempFile.is_open()) {
-         // Copy lines from the original file to the temporary file
+         // Copys lines from the original file to the temporary file
          int messageNumber = 1;
          string line;
          bool inMessage = false;
@@ -618,9 +618,9 @@ int processDel(int client_socket) {
                if (line == "MESSAGE") {
                   inMessage = true;
                   if (messageNumber == messageToDelete) {
-                     // Skip this message if it matches the one to be deleted
+                     // Skips this message if it matches the one to be deleted
                      while (getline(userFile, line) && !line.empty()) {
-                           // Skip the entire message
+                           // Skips the entire message
                      }
                      messageNumber++;
                      continue;
@@ -637,11 +637,11 @@ int processDel(int client_socket) {
                tempFile << line << "\n";
          }
 
-         // Close both files
+         // Closes both files
          userFile.close();
          tempFile.close();
 
-         // Remove the original file and rename the temporary file
+         // Removes the original file and renames the temporary file
          if (remove(userFilename.c_str()) == 0) {
                if (rename(tempFilename.c_str(), userFilename.c_str()) == 0) {
                   string successMsg = "Message " + messageNr + " deleted successfully.\n";
