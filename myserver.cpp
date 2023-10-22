@@ -203,7 +203,7 @@ void *clientCommunication(void *data)
 
    ////////////////////////////////////////////////////////////////////////////
    // SEND welcome message
-   strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands: \n SEND, LIST, READ, DEL, QUIT...\r\n");
+   strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands: \n SEND, LIST, READ, DELE, QUIT...\r\n");
    if (send(*current_socket, buffer, strlen(buffer), 0) == -1)
    {
       perror("send failed");
@@ -296,7 +296,7 @@ void *clientCommunication(void *data)
                }
          }
       }
-      else if(strcmp(buffer, "DEL")==0){
+      else if(strcmp(buffer, "DELE")==0){
           if (send(*current_socket, "<< OK", 6, 0) == -1)
                {
                   perror("send answer failed");
@@ -579,7 +579,75 @@ int processRead(int client_socket){
    return 0;
 }
 
-/*int processDel(int client_socket){
+int processDel(int client_socket) {
+   char buffer[BUF];
+   string username, messageNr;
+
+   // Get username
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   username = buffer;
+   memset(buffer, 0, BUF);
+
+   // Get number of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   messageNr = buffer;
+   memset(buffer, 0, BUF);
+
+   // Convert message number to an integer
+   int messageToDelete = std::stoi(messageNr);
+
+   // Open the user's file
+   string userFilename = "./" + mailSpool + "/" + username;
+   ifstream userFile(userFilename);
+
+   if (!userFile.is_open()) {
+      string errMsg = "User file not found for user: " + username + "\n";
+      send(client_socket, errMsg.c_str(), errMsg.size(), 0);
+      return -1;
+   }
+
+   string line;
+   int messageNumber = 1;
+   string newContent;
+
+   while (getline(userFile, line)) {
+      if (line == "MESSAGE") {
+         if (messageNumber != messageToDelete) {
+               // Keep the lines of the message except the one to delete
+               newContent += line + "\n";
+               while (getline(userFile, line) && !line.empty()) {
+                  newContent += line + "\n";
+               }
+         } else {
+               // Skip the lines of the message to delete
+               while (getline(userFile, line) && !line.empty()) {
+                  continue;
+               }
+         }
+         messageNumber++;
+      }
+   }
+
+   // Close the user's file
+   userFile.close();
+
+   // Reopen the user's file for writing
+   ofstream newUserFile(userFilename);
+   if (!newUserFile.is_open()) {
+      cerr << "Error opening user file for writing." << endl;
+      return -1;
+   }
+
+   // Write the updated content back to the user's file
+   newUserFile << newContent;
+
+   // Close the user's file
+   newUserFile.close();
+
+   // Send a success message
+   string successMsg = "Message " + messageNr + " deleted successfully.\n";
+   send(client_socket, successMsg.c_str(), successMsg.size(), 0);
 
    return 0;
-}*/
+}
+
