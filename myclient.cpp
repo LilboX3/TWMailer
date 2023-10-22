@@ -118,7 +118,7 @@ int main(int argc, char **argv)
             continue;
         }
       }
-      else if(command=="DEL"){
+      else if(command=="DELE"){
          if(delCommand(create_socket) == -1){
             continue;
         }
