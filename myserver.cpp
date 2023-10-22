@@ -296,19 +296,26 @@ void *clientCommunication(void *data)
                }
          }
       }
-      else if(strcmp(buffer, "DELE")==0){
-          if (send(*current_socket, "<< OK", 6, 0) == -1)
-               {
+      else if (strcmp(buffer, "DELE") == 0) {
+         if (processDel(*current_socket) != -1) {
+            if (send(*current_socket, "<< OK", 6, 0) == -1) {
                   perror("send answer failed");
                   return NULL;
-               }
+            }
+         } else {
+            // Send an error if the delete didn't work
+            if (send(*current_socket, "<< ERR", 7, 0) == -1) {
+                  perror("send answer failed");
+                  return NULL;
+            }
+         }
       }
       else if(strcmp(buffer, "QUIT")==0){
          cout << "Client is quitting" <<endl;
          abortRequested = 1;//handled in signalHandler
       }
       else {
-          if (send(*current_socket, "<< ERR", 7, 0) == -1)
+         if (send(*current_socket, "<< ERR", 7, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
@@ -421,10 +428,10 @@ int processSend(int client_socket){
 }
 
 int createMailSpool(string dirName){
-    // Path to the directory
-    string dir = "./"+dirName;
-    // Structure which would store the metadata
-    struct stat sb;
+   // Path to the directory
+   string dir = "./"+dirName;
+   // Structure which would store the metadata
+   struct stat sb;
 
    //only create mail spool directory with name if it doesnt exist yet
    if(stat(dir.c_str(), &sb) != 0){
@@ -433,7 +440,7 @@ int createMailSpool(string dirName){
       }
    }
    
-  return 0;
+   return 0;
 }
 
 int writeUserFile(string username, string sender, string subject, string message){
@@ -453,13 +460,8 @@ int writeUserFile(string username, string sender, string subject, string message
    return 0;
 }
 
-/* TODO:
---> Folder die schon existiert nicht createn
---> File erstellen (nach user benannt) und darin content von SEND schreiben
---> File in Folder speichern
-*/
 
-// ./twmailer-server 1234 Reciever
+// ./twmailer-server 1234 Users
 // ./twmailer-client 127.0.0.1 1234 port kann alles sein muss einfach nur matchen
 
 int processList(int client_socket) {
@@ -471,72 +473,72 @@ int processList(int client_socket) {
    username = buffer;
    memset(buffer, 0, BUF);
 
-    printf("Listing messages for user: %s\n", username.c_str());
+   printf("Listing messages for user: %s\n", username.c_str());
 
-    // Open the user's file and read messages
-    string userFilename = "./" + mailSpool + "/" + username;
-    ifstream userFile(userFilename.c_str());
+   // Open the user's file and read messages
+   string userFilename = "./" + mailSpool + "/" + username;
+   ifstream userFile(userFilename.c_str());
 
-    if (userFile.is_open()) {
-        string line;
-        int messageNumber = 0; // Track the message number
-        while (getline(userFile, line)) {
+   if (userFile.is_open()) {
+      string line;
+      int messageNumber = 0; // Track the message number
+      while (getline(userFile, line)) {
 
-            if (line == "MESSAGE") {
-                string sender, subject, message;
-                getline(userFile, sender);
-                getline(userFile, subject);
+         if (line == "MESSAGE") {
+               string sender, subject, message;
+               getline(userFile, sender);
+               getline(userFile, subject);
 
-                string messageLine;
-                while (getline(userFile, messageLine)) {
-                    if (messageLine.empty()) {
-                        break;
-                    }
-                    message += messageLine + "\n";
-                }
+               string messageLine;
+               while (getline(userFile, messageLine)) {
+                  if (messageLine.empty()) {
+                     break;
+                  }
+                  message += messageLine + "\n";
+               }
 
-                // Send message number and subject to the client
-                messageNumber++; // Increment the message number
-                send(client_socket, to_string(messageNumber).c_str(), to_string(messageNumber).size(), 0);
-                send(client_socket, ". Subject: ", 11, 0); // Add a period to distinguish the subject
-                send(client_socket, subject.c_str(), subject.size(), 0);
-                send(client_socket, "\n", 1, 0); // Add a newline
-            }
-        }
-        userFile.close();
-    } else {
-        printf("User file not found for user: %s\n", username.c_str());
-        return -1;
-    }
-    return 0;
+               // Send message number and subject to the client
+               messageNumber++; // Increment the message number
+               send(client_socket, to_string(messageNumber).c_str(), to_string(messageNumber).size(), 0);
+               send(client_socket, ". Subject: ", 11, 0); // Add a period to distinguish the subject
+               send(client_socket, subject.c_str(), subject.size(), 0);
+               send(client_socket, "\n", 1, 0); // Add a newline
+         }
+      }
+      userFile.close();
+   } else {
+      printf("User file not found for user: %s\n", username.c_str());
+      return -1;
+   }
+   return 0;
 }
 
 int processRead(int client_socket){
    char buffer[BUF];
    string username, messageNr;
 
-   //Gets username
+   //Get username
    recv(client_socket, buffer, sizeof(buffer), 0);
    username = buffer;
    memset(buffer, 0, BUF);
-   //Gets number of message
+   //Get number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    messageNr = buffer;
    memset(buffer, 0, BUF);
 
-   //Checks if number of message is in fact an int
+   //Check if number of message is in fact an int
    char* p;
    long converted = strtol(messageNr.c_str(), &p, 10);
    if (*p) {
       return -1;
    }
    int messageToFind = converted;
-   //Openss file of user
+   //Open file of user
    string userFilename = "./" + mailSpool + "/" + username;
    cout << "Trying to find: " << userFilename << endl;
    ifstream userFile(userFilename.c_str());
    if (userFile.is_open()) {
-      //finds specific message
+      //find specific message
       int messageNumber = 1;
       string line;
       while(getline(userFile, line)){
@@ -544,23 +546,23 @@ int processRead(int client_socket){
          if(line=="MESSAGE"&&messageNumber==messageToFind){
             cout << "FOUND MESSAGE NUMBER "<<messageToFind << endl;
             string sender, subject, message;
-                getline(userFile, sender);
-                getline(userFile, subject);
+               getline(userFile, sender);
+               getline(userFile, subject);
 
-                string messageLine;
-                while (getline(userFile, messageLine)) {
-                    if (messageLine.empty()) {
-                        break;
-                    }
-                    message += messageLine + "\n";
-                }
-                //Send the specific message to client
-                send(client_socket, sender.c_str(), sender.size(), 0);
-                send(client_socket, "\n", 1, 0);
-                send(client_socket, subject.c_str(), subject.size(), 0);
-                send(client_socket, "\n", 1, 0);
-                send(client_socket, message.c_str(), message.size(), 0);
-                return 0;
+               string messageLine;
+               while (getline(userFile, messageLine)) {
+                  if (messageLine.empty()) {
+                     break;
+                  }
+                  message += messageLine + "\n";
+               }
+               //Send the specific message to client
+               send(client_socket, sender.c_str(), sender.size(), 0);
+               send(client_socket, "\n", 1, 0);
+               send(client_socket, subject.c_str(), subject.size(), 0);
+               send(client_socket, "\n", 1, 0);
+               send(client_socket, message.c_str(), message.size(), 0);
+               return 0;
 
          } else if(line=="MESSAGE") {
             messageNumber++;
@@ -587,7 +589,7 @@ int processDel(int client_socket) {
    recv(client_socket, buffer, sizeof(buffer), 0);
    username = buffer;
    memset(buffer, 0, BUF);
-   // Gets number of message
+   // Get number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    messageNr = buffer;
    memset(buffer, 0, BUF);
@@ -641,7 +643,7 @@ int processDel(int client_socket) {
          userFile.close();
          tempFile.close();
 
-         // Removes the original file and renames the temporary file
+         // Removes the original file and rename the temporary file
          if (remove(userFilename.c_str()) == 0) {
                if (rename(tempFilename.c_str(), userFilename.c_str()) == 0) {
                   string successMsg = "Message " + messageNr + " deleted successfully.\n";
