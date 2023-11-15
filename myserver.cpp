@@ -11,6 +11,10 @@
 #include <iostream>
 #include <sys/stat.h>
 #include <fstream>
+#include <chrono>
+#include <thread>
+#include <ldap.h>
+
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,9 +36,11 @@ void signalHandler(int sig);
 int processSend(int client_socket);
 int createMailSpool(string dirName);
 int writeUserFile(string username, string sender, string subject, string message);
-void processList(int client_socket, const string& username);
-void processRead(int client_socket, const string& username, int messageNumber);
-
+int processList(int client_socket);
+int processRead(int client_socket);
+int processDel(int client_socket);
+int LdapAuth(const string& username, const string& password);
+int processLogin(int socket);
 ///////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
@@ -45,7 +51,7 @@ int main(int argc, char **argv)
 
    if(argc != 3){
       argv = argv;
-      perror("Usage: ./twmailer-server <port> <mail-spool-directoryname>");
+      cerr << "Usage: ./twmailer-server <port> <mail-spool-directoryname>";
       return EXIT_FAILURE;
    }
 
@@ -53,7 +59,7 @@ int main(int argc, char **argv)
    std::istringstream iss(argv[1]);
    int port;
    if(!(iss >> port)){
-      perror("Invalid port - not a number");
+      cerr << "Invalid port - not a number";
       return EXIT_FAILURE;
    }
 
@@ -95,7 +101,7 @@ int main(int argc, char **argv)
    // socket, level, optname, optvalue, optlen
    if (setsockopt(create_socket,
                   SOL_SOCKET,
-                  SO_REUSEADDR,
+                  SO_REUSEADDR, 
                   &reuseValue,
                   sizeof(reuseValue)) == -1)
    {
@@ -246,59 +252,79 @@ void *clientCommunication(void *data)
 
       if(strcmp(buffer, "SEND")==0){
          if(processSend(*current_socket)!=-1){
-            if (send(*current_socket, "OK", 3, 0) == -1)
+            if (send(*current_socket, "<< OK", 6, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
                }
          } else {
             //send error if it didnt work
-            if (send(*current_socket, "ERR", 3, 0) == -1)
+            if (send(*current_socket, "<< ERR", 7, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
                }
          }
-      }else if (strcmp(buffer, "LIST") == 0) {
-         if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
-            buffer[size] = '\0';
-            string username = buffer;
-            processList(*current_socket, username);
-         } else {
-            printf("Error receiving username for LIST command\n");
-            return NULL;
+      }
+      else if (strcmp(buffer, "LIST") == 0) {
+         if(processList(*current_socket)!=-1){
+            if (send(*current_socket, "<< OK", 6, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+         }  else {
+            //send error if it didnt work
+            if (send(*current_socket, "<< ERR", 7, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
          }
-      }else if (strcmp(buffer, "READ") == 0) {
-         // Receive the message number
-         if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
-            buffer[size] = '\0';
-            int messageNumber = atoi(buffer);
-
-            // Receive the username
-            if (recv(*current_socket, buffer, BUF - 1, 0) > 0) {
-                  buffer[size] = '\0';
-                  string username = buffer;
-
-                  // Call processRead with the message number and username
-                  processRead(*current_socket, username, messageNumber);
-            } else {
-                  printf("Error receiving the username for READ command\n");
+      }
+      else if(strcmp(buffer, "READ")==0){
+         if(processRead(*current_socket)!=-1){
+            if (send(*current_socket, "<< OK", 6, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+         } else {
+            //send error if it didnt work
+            if (send(*current_socket, "<< ERR", 7, 0) == -1)
+               {
+                  perror("send answer failed");
+                  return NULL;
+               }
+         }
+      }
+      else if (strcmp(buffer, "DEL") == 0) {
+         if (processDel(*current_socket) != -1) {
+            if (send(*current_socket, "<< OK", 6, 0) == -1) {
+                  perror("send answer failed");
                   return NULL;
             }
          } else {
-            printf("Error receiving message number for READ command\n");
-            return NULL;
-         }
-      }
-      else if(strcmp(buffer, "DEL")==0){
-          if (send(*current_socket, "OK", 3, 0) == -1)
-               {
+            // Send an error if the delete didn't work
+            if (send(*current_socket, "<< ERR", 7, 0) == -1) {
                   perror("send answer failed");
                   return NULL;
-               }
+            }
+         }
+      }
+      else if(strcmp(buffer, "QUIT")==0){
+         cout << "Client is quitting" <<endl;
+         abortRequested = 1;//handled in signalHandler
+      }
+      else if (strcmp(buffer, "LOGIN") == 0) {
+         // Process LOGIN command
+         if (processLogin(*current_socket) == -1) {
+            std::cout << "Login failed. Closing connection.\n";
+            break;
+         }
       }
       else {
-          if (send(*current_socket, "ERR", 3, 0) == -1)
+         if (send(*current_socket, "<< ERR", 7, 0) == -1)
                {
                   perror("send answer failed");
                   return NULL;
@@ -307,7 +333,7 @@ void *clientCommunication(void *data)
 
       
 
-   } while (strcmp(buffer, "QUIT") != 0 && !abortRequested);
+   } while (!abortRequested);
 
    // closes/frees the descriptor if not already
    if (*current_socket != -1)
@@ -411,10 +437,10 @@ int processSend(int client_socket){
 }
 
 int createMailSpool(string dirName){
-    // Path to the directory
-    string dir = "./"+dirName;
-    // Structure which would store the metadata
-    struct stat sb;
+   // Path to the directory
+   string dir = "./"+dirName;
+   // Structure which would store the metadata
+   struct stat sb;
 
    //only create mail spool directory with name if it doesnt exist yet
    if(stat(dir.c_str(), &sb) != 0){
@@ -423,7 +449,7 @@ int createMailSpool(string dirName){
       }
    }
    
-  return 0;
+   return 0;
 }
 
 int writeUserFile(string username, string sender, string subject, string message){
@@ -443,98 +469,247 @@ int writeUserFile(string username, string sender, string subject, string message
    return 0;
 }
 
-/* TODO:
---> Folder die schon existiert nicht createn
---> File erstellen (nach user benannt) und darin content von SEND schreiben
---> File in Folder speichern
-*/
 
-// ./twmailer-server 1234 Reciever
-// ./twmailer-client 127.0.0.1 1234
+// ./twmailer-server 1234 Users
+// ./twmailer-client 127.0.0.1 1234 port kann alles sein muss einfach nur matchen
 
-void processList(int client_socket, const string& username) {
-    printf("Listing messages for user: %s\n", username.c_str());
+int processList(int client_socket) {
+   char buffer[BUF];
+   string username;
 
-    // Open the user's file and read messages
-    string userFilename = "./" + mailSpool + "/" + username;
-    ifstream userFile(userFilename.c_str());
-    if (userFile.is_open()) {
-        string line;
-        int messageNumber = 0; // Track the message number
-        while (getline(userFile, line)) {
-            if (line == "MESSAGE") {
-                string sender, subject, message;
-                getline(userFile, sender);
-                getline(userFile, subject);
-                string messageLine;
-                while (getline(userFile, messageLine)) {
-                    if (messageLine.empty()) {
-                        break;
-                    }
-                    message += messageLine + "\n";
-                }
+   //Get sender of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   username = buffer;
+   memset(buffer, 0, BUF);
 
-                // Send message number and subject to the client
-                messageNumber++; // Increment the message number
-                send(client_socket, to_string(messageNumber).c_str(), to_string(messageNumber).size(), 0);
-                send(client_socket, ". Subject: ", 11, 0); // Add a period to distinguish the subject
-                send(client_socket, subject.c_str(), subject.size(), 0);
-                send(client_socket, "\n", 1, 0); // Add a newline
-            }
-        }
-        userFile.close();
-    } else {
-        printf("User file not found for user: %s\n", username.c_str());
-    }
+   printf("Listing messages for user: %s\n", username.c_str());
+
+   // Open the user's file and read messages
+   string userFilename = "./" + mailSpool + "/" + username;
+   ifstream userFile(userFilename.c_str());
+
+   if (userFile.is_open()) {
+      string line;
+      int messageNumber = 0; // Track the message number
+      while (getline(userFile, line)) {
+
+         if (line == "MESSAGE") {
+               string sender, subject, message;
+               getline(userFile, sender);
+               getline(userFile, subject);
+
+               string messageLine;
+               while (getline(userFile, messageLine)) {
+                  if (messageLine.empty()) {
+                     break;
+                  }
+                  message += messageLine + "\n";
+               }
+
+               // Send message number and subject to the client
+               messageNumber++; // Increment the message number
+               send(client_socket, to_string(messageNumber).c_str(), to_string(messageNumber).size(), 0);
+               send(client_socket, ". Subject: ", 11, 0); // Add a period to distinguish the subject
+               send(client_socket, subject.c_str(), subject.size(), 0);
+               send(client_socket, "\n", 1, 0); // Add a newline
+         }
+      }
+      userFile.close();
+   } else {
+      printf("User file not found for user: %s\n", username.c_str());
+      return -1;
+   }
+   return 0;
 }
 
-void processRead(int client_socket, const string& username, int messageNumber) {
-    printf("Reading message %d for user: %s\n", messageNumber, username.c_str());
+int processRead(int client_socket){
+   char buffer[BUF];
+   string username, messageNr;
 
-    // Open the user's file and read messages
-    string userFilename = "./" + mailSpool + "/" + username;
-    ifstream userFile(userFilename.c_str());
-    if (userFile.is_open()) {
-        string line;
-        int currentMessage = 0; // Track the current message number
-        string sender, subject, message;
-        while (getline(userFile, line)) {
-            if (line == "MESSAGE") {
-                currentMessage++;
-                printf("Found MESSAGE. Current message number: %d\n", currentMessage);
-                if (currentMessage == messageNumber) {
-                    getline(userFile, sender);
-                    getline(userFile, subject);
-                    string messageLine;
-                    while (getline(userFile, messageLine)) {
-                        if (messageLine.empty()) {
-                            break;
-                        }
-                        message += messageLine + "\n";
-                    }
+   //Get username
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   username = buffer;
+   memset(buffer, 0, BUF);
+   //Get number of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   messageNr = buffer;
+   memset(buffer, 0, BUF);
 
-                    // Send the message content to the client
-                    send(client_socket, "OK\n", 3, 0);
-                    send(client_socket, sender.c_str(), sender.size(), 0);
-                    send(client_socket, "\n", 1, 0);
-                    send(client_socket, subject.c_str(), subject.size(), 0);
-                    send(client_socket, "\n", 1, 0);
-                    send(client_socket, message.c_str(), message.size(), 0);
-                    send(client_socket, "\n", 1, 0);
-                    userFile.close();
-                    printf("Message sent to client successfully.\n");
-                    return;
-                }
-            }
-        }
-        userFile.close();
-    } else {
-        printf("User file not found for user: %s\n", username.c_str());
-        send(client_socket, "ERR\n", 4, 0);
-        printf("Sent 'ERR' response to client.\n");
-    }
+   //Check if number of message is in fact an int
+   char* p;
+   long converted = strtol(messageNr.c_str(), &p, 10);
+   if (*p) {
+      return -1;
+   }
+   int messageToFind = converted;
+   //Open file of user
+   string userFilename = "./" + mailSpool + "/" + username;
+   cout << "Trying to find: " << userFilename << endl;
+   ifstream userFile(userFilename.c_str());
+   if (userFile.is_open()) {
+      //find specific message
+      int messageNumber = 1;
+      string line;
+      while(getline(userFile, line)){
+         //Message found
+         if(line=="MESSAGE"&&messageNumber==messageToFind){
+            cout << "FOUND MESSAGE NUMBER "<<messageToFind << endl;
+            string sender, subject, message;
+               getline(userFile, sender);
+               getline(userFile, subject);
 
-    // If the message number was not found, send an error response
-    send(client_socket, "ERR\n", 4, 0);
-    printf("Sent 'ERR' response to client.\n");
+               string messageLine;
+               while (getline(userFile, messageLine)) {
+                  if (messageLine.empty()) {
+                     break;
+                  }
+                  message += messageLine + "\n";
+               }
+               //Send the specific message to client
+               send(client_socket, sender.c_str(), sender.size(), 0);
+               send(client_socket, "\n", 1, 0);
+               send(client_socket, subject.c_str(), subject.size(), 0);
+               send(client_socket, "\n", 1, 0);
+               send(client_socket, message.c_str(), message.size(), 0);
+               return 0;
+
+         } else if(line=="MESSAGE") {
+            messageNumber++;
+         }
+      }
+      //if message was not found
+      string errMsg = "Message nr. "+to_string(messageToFind)+" doesn't exist!\n";
+      send(client_socket, errMsg.c_str(), errMsg.size(), 0);
+      return -1;
+      userFile.close();
+   } else {
+      printf("User file not found for user: %s\n", username.c_str());
+      return -1;  
+   }
+
+   return 0;
 }
+
+int processDel(int client_socket) {
+   char buffer[BUF];
+   string username, messageNr;
+
+   // Gets username
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   username = buffer;
+   memset(buffer, 0, BUF);
+   // Get number of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   messageNr = buffer;
+   memset(buffer, 0, BUF);
+
+   // Checks if number of message is in fact an int
+   char *p;
+   long converted = strtol(messageNr.c_str(), &p, 10);
+   if (*p) {
+      return -1;
+   }
+   int messageToDelete = converted;
+   // Opens file of user
+   string userFilename = "./" + mailSpool + "/" + username;
+   cout << "Trying to find: " << userFilename << endl;
+   ifstream userFile(userFilename.c_str());
+   if (userFile.is_open()) {
+      // Creates a temporary file to rewrite the user's file
+      string tempFilename = "./" + mailSpool + "/temp_" + username;
+      ofstream tempFile(tempFilename.c_str());
+
+      if (tempFile.is_open()) {
+         // Copys lines from the original file to the temporary file
+         int messageNumber = 1;
+         string line;
+         bool inMessage = false;
+
+         while (getline(userFile, line)) {
+               if (line == "MESSAGE") {
+                  inMessage = true;
+                  if (messageNumber == messageToDelete) {
+                     // Skips this message if it matches the one to be deleted
+                     while (getline(userFile, line) && !line.empty()) {
+                           // Skips the entire message
+                     }
+                     messageNumber++;
+                     continue;
+                  }
+               }
+
+               if (inMessage) {
+                  if (line.empty()) {
+                     inMessage = false;
+                     messageNumber++;
+                  }
+               }
+
+               tempFile << line << "\n";
+         }
+
+         // Closes both files
+         userFile.close();
+         tempFile.close();
+
+         // Removes the original file and rename the temporary file
+         if (remove(userFilename.c_str()) == 0) {
+               if (rename(tempFilename.c_str(), userFilename.c_str()) == 0) {
+                  string successMsg = "Message " + messageNr + " deleted successfully.\n";
+                  send(client_socket, successMsg.c_str(), successMsg.size(), 0);
+                  send(client_socket, "<< OK", 6, 0);
+                  return 0;
+               }
+         }
+      }
+
+      send(client_socket, "<< ERR", 7, 0);
+   } else {
+      printf("User file not found for user: %s\n", username.c_str());
+      return -1;
+   }
+
+   return -1;
+}
+
+int processLogin(int client_socket) {
+   char buffer[BUF];
+   std::string username, password;
+
+   // Receive the username from the client
+   if (recv(client_socket, buffer, BUF - 1, 0) == -1) {
+      perror("recv error");
+      return -1;
+   }
+   int size = recv(client_socket, buffer, BUF - 1, 0);
+   buffer[size] = '\0';
+   username = buffer;
+
+   // Receive the password from the client
+   if (recv(client_socket, buffer, BUF - 1, 0) == -1) {
+      perror("recv error");
+      return -1;
+   }
+   buffer[size] = '\0';
+   password = buffer;
+
+   // Perform LDAP authentication
+   if (LdapAuth(username, password) == -1) {
+      // Authentication failed
+      std::cout << "LDAP Authentication failed for user: " << username << "\n";
+      if (send(client_socket, "ERR", 3, 0) == -1) {
+         perror("send error");
+         return -1;
+      }
+      return -1;
+   }
+
+   // Inform the client of successful authentication
+   if (send(client_socket, "OK", 2, 0) == -1) {
+      perror("send error");
+      return -1;
+   }
+
+   return 0;
+}
+
