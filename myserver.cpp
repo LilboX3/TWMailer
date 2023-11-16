@@ -33,12 +33,13 @@ string mailSpool;
 ///////////////////////////////////////////////////////////////////////////////
 
 const char *LDAP_SERVER = "ldap.technikum.wien.at";
-//const int LDAP_PORT = 389;
+const int PORT_LDAP = 389;
 const char *LDAP_SEARCH_BASE = "dc=technikum-wien,dc=at";
 const int MAX_LOGIN_ATTEMPTS = 3;
 const int BLACKLIST_DURATION = 60;
 int loginAttempts = 0;
-int connectLdap(string username, string password);
+int connectLdap(int client_socket);
+int isLoggedIn = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -215,7 +216,7 @@ void *clientCommunication(void *data)
 
    ////////////////////////////////////////////////////////////////////////////
    // SEND welcome message
-   strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands: \n SEND, LIST, READ, DEL, QUIT...\r\n");
+   strcpy(buffer, "Welcome to myserver!\r\n Login first, with LOGIN!\n");
    if (send(*current_socket, buffer, strlen(buffer), 0) == -1)
    {
       perror("send failed");
@@ -260,79 +261,116 @@ void *clientCommunication(void *data)
 
       printf("Message received: %s\n", buffer); // ignore error
 
-      if(strcmp(buffer, "SEND")==0){
-         if(processSend(*current_socket)!=-1){
-            if (send(*current_socket, "<< OK", 6, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
+
+      //Not logged in: can't access
+      if(!isLoggedIn){
+         //Client must login first
+            if(strcmp(buffer, "LOGIN")==0){
+               if(connectLdap(*current_socket)==-1){
+                     if(send(*current_socket, "<< ERR", 7, 0) == -1)
+                     {
+                        perror("send answer failed");
+                        return NULL;
+                     }
                }
-         } else {
-            //send error if it didnt work
-            if (send(*current_socket, "<< ERR", 7, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
-               }
-         }
-      }
-      else if (strcmp(buffer, "LIST") == 0) {
-         if(processList(*current_socket)!=-1){
-            if (send(*current_socket, "<< OK", 6, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
-               }
-         }  else {
-            //send error if it didnt work
-            if (send(*current_socket, "<< ERR", 7, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
-               }
-         }
-      }
-      else if(strcmp(buffer, "READ")==0){
-         if(processRead(*current_socket)!=-1){
-            if (send(*current_socket, "<< OK", 6, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
-               }
-         } else {
-            //send error if it didnt work
-            if (send(*current_socket, "<< ERR", 7, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
-               }
-         }
-      }
-      else if (strcmp(buffer, "DEL") == 0) {
-         if (processDel(*current_socket) != -1) {
-            if (send(*current_socket, "<< OK", 6, 0) == -1) {
-                  perror("send answer failed");
-                  return NULL;
+               isLoggedIn = 1;
+               // SEND login message
+               string welcome = "You are now logged in!\r\n Please enter a command SEND, LIST, READ, DEL, QUIT\n";
+               if (send(*current_socket, welcome.c_str(), strlen(welcome.c_str()), 0) == -1)
+                  {
+                     perror("send failed");
+                     return NULL;
+                  }
+               if (send(*current_socket, "<< OK", 6, 0) == -1)
+                     {
+                        perror("send answer failed");
+                        return NULL;
+                     }
+            } else {
+               //Must login first message
+               if (send(*current_socket, "<< LOGIN FIRST", 15, 0) == -1)
+                     {
+                        perror("send answer failed");
+                        return NULL;
+                     }
             }
-         } else {
-            // Send an error if the delete didn't work
+      //Logged in: access to commands
+      } else {
+            if(strcmp(buffer, "SEND")==0){
+               if(processSend(*current_socket)!=-1){
+                  if (send(*current_socket, "<< OK", 6, 0) == -1)
+                     {
+                        perror("send answer failed");
+                        return NULL;
+                     }
+            } else {
+               //send error if it didnt work
+               if (send(*current_socket, "<< ERR", 7, 0) == -1)
+                  {
+                     perror("send answer failed");
+                     return NULL;
+                  }
+            }
+         }
+         else if (strcmp(buffer, "LIST") == 0) {
+            if(processList(*current_socket)!=-1){
+               if (send(*current_socket, "<< OK", 6, 0) == -1)
+                  {
+                     perror("send answer failed");
+                     return NULL;
+                  }
+            }  else {
+               //send error if it didnt work
+               if (send(*current_socket, "<< ERR", 7, 0) == -1)
+                  {
+                     perror("send answer failed");
+                     return NULL;
+                  }
+            }
+         }
+         else if(strcmp(buffer, "READ")==0){
+            if(processRead(*current_socket)!=-1){
+               if (send(*current_socket, "<< OK", 6, 0) == -1)
+                  {
+                     perror("send answer failed");
+                     return NULL;
+                  }
+            } else {
+               //send error if it didnt work
+               if (send(*current_socket, "<< ERR", 7, 0) == -1)
+                  {
+                     perror("send answer failed");
+                     return NULL;
+                  }
+            }
+         }
+         else if (strcmp(buffer, "DEL") == 0) {
+            if (processDel(*current_socket) != -1) {
+               if (send(*current_socket, "<< OK", 6, 0) == -1) {
+                     perror("send answer failed");
+                     return NULL;
+               }
+            } else {
+               // Send an error if the delete didn't work
+               if (send(*current_socket, "<< ERR", 7, 0) == -1) {
+                     perror("send answer failed");
+                     return NULL;
+               }
+            }
+         }
+         else if(strcmp(buffer, "QUIT")==0){
+            cout << "Client is quitting" <<endl;
+            abortRequested = 1;//handled in signalHandler
+         }
+         else if(strcmp(buffer, "LOGIN")==0){ //already logged In!
             if (send(*current_socket, "<< ERR", 7, 0) == -1) {
-                  perror("send answer failed");
-                  return NULL;
-            }
-         }
-      }
-      else if(strcmp(buffer, "QUIT")==0){
-         cout << "Client is quitting" <<endl;
-         abortRequested = 1;//handled in signalHandler
-      }
-      else {
-         if (send(*current_socket, "<< ERR", 7, 0) == -1)
-               {
-                  perror("send answer failed");
-                  return NULL;
+                     perror("send answer failed");
+                     return NULL;
                }
+         }
+         
       }
+      
 
       
 
@@ -665,8 +703,6 @@ int processDel(int client_socket) {
                }
          }
       }
-
-      send(client_socket, "<< ERR", 7, 0);
    } else {
       printf("User file not found for user: %s\n", username.c_str());
       return -1;
@@ -675,31 +711,65 @@ int processDel(int client_socket) {
    return -1;
 }
 
-int connectLdap(string username, string password){
+int connectLdap(int client_socket){
    LDAP *ld;
+   int ldapVersion = LDAP_VERSION3;
+
+   char buffer[BUF];
+   string username, password;
+   
+   memset(buffer, 0, BUF);
+   // Gets username
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   cout << buffer << endl;
+   username = buffer;
+   memset(buffer, 0, BUF);
+   // Get number of message
+   recv(client_socket, buffer, sizeof(buffer), 0);
+   cout << buffer << endl;
+   password = buffer;
+   memset(buffer, 0, BUF);
 
    //Initializes session with an LDAP server, returns LDAP structure 
-   if((ld=ldap_init(LDAP_SERVER, LDAP_PORT))==NULL){
-      cerr << "Error in ldap_init";
+   if((ld=ldap_init(LDAP_SERVER, PORT_LDAP))==NULL){
+      cerr << "Error in ldap_init"<< endl;
       return -1;
+   }
+      //  Set the version to 3.0 (default is 2.0).
+   int returnCode = ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &ldapVersion);
+   if(returnCode == LDAP_SUCCESS)
+      printf("ldap_set_option succeeded - version set to 3\n");
+   else
+   {
+      printf("SetOption Error:%0X\n", returnCode);
+   }
+
+   // Connect to the server.
+   int connectSuccess = ldap_connect(ld); 
+   if(connectSuccess == LDAP_SUCCESS)
+      printf("ldap_connect succeeded \n");
+   else
+   {
+      printf("ldap_connect failed with 0x%x.\n",connectSuccess);
    }
 
    //username mit search base verbinden, spezifischer distinguished name!
    char dn[256];
    sprintf(dn, "uid=%s,%s", username.c_str(), LDAP_SEARCH_BASE);
-   
+   cout << dn << endl;
+
    if(ldap_simple_bind_s(ld, dn, password.c_str())!=LDAP_SUCCESS){
       if(loginAttempts==MAX_LOGIN_ATTEMPTS){
          // TODO: idk do something no more login
-         cerr << "Too many login attempts";
+         cerr << "Too many login attempts"<< endl;
          return -1;
       }
       loginAttempts+=1;
-      cerr << "Authentication failed" ;
+      cerr << "Authentication failed" << endl;
       return -1;
    }
 
    cout << "LDAP bind as "<< username << " was successful!"<<endl;
-
+   ldap_unbind(ld);
    return 0;
 }

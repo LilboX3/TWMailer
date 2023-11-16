@@ -8,6 +8,7 @@
 #include <string.h>
 #include <iostream>
 #include <sstream>
+#include <termios.h> // To use 'termios' and 'tcsetattr'
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -21,6 +22,7 @@ int listCommand(int socket);
 int readCommand(int socket);
 int delCommand(int socket);
 int specificMessage(int socket);
+int loginCommand(int socket);
 
 int main(int argc, char **argv)
 {
@@ -123,6 +125,11 @@ int main(int argc, char **argv)
             continue;
         }
       }
+      else if(command=="LOGIN"){
+         if(loginCommand(create_socket) ==-1){
+            continue;
+         }
+      }
       else if(command=="QUIT"){
          isQuit = 1;
          if ((send(create_socket, "QUIT", 4, 0)) == -1) 
@@ -134,28 +141,10 @@ int main(int argc, char **argv)
          cout << "No valid command!" << endl;
          continue;
       }
-
-         //////////////////////////////////////////////////////////////////////
-         // RECEIVE FEEDBACK
-         // consider: reconnect handling might be appropriate in somes cases
-         //           How can we determine that the command sent was received 
-         //           or not? 
-         //           - Resend, might change state too often. 
-         //           - Else a command might have been lost.
-         //
-         // solution 1: adding meta-data (unique command id) and check on the
-         //             server if already processed.
-         // solution 2: add an infrastructure component for messaging (broker)
-         //
          if(!isQuit){
 
             while(true){
                size = recv(create_socket, buffer, BUF - 1, 0);
-               //cout << "currently in buffer: --> "<<buffer << "-->END"<<endl;
-               /*if(strncmp("OK", buffer, 3)==0||strncmp("ERR", buffer, 4)==0){
-                  printf("<< %s\n", buffer);
-                  break;
-               }*/
 
             if (size == -1)
             {
@@ -176,16 +165,20 @@ int main(int argc, char **argv)
                char *output = NULL;
                output = strstr (buffer,"<< OK");
                if(output) {
-                  //printf("<< OK\n");
+                  memset(buffer, 0, BUF);
                   break;
                }
                output = strstr (buffer,"<< ERR");
                if(output) {
-                  //printf("<< ERR\n");
+                  memset(buffer, 0, BUF);
+                  break;
+               }
+               output = strstr (buffer, "<< LOGIN FIRST");
+               if(output) {
+                  memset(buffer, 0, BUF);
                   break;
                }
             }
-            memset(buffer, 0, BUF);
             }
          }
    } while (!isQuit);
@@ -208,6 +201,7 @@ int main(int argc, char **argv)
 
    return EXIT_SUCCESS;
 }
+
 // -----------------------Functions for user input and sending-------------------------------
 int sendCommand(int socket){
    if ((send(socket, "SEND", 4, 0)) == -1) 
@@ -328,6 +322,42 @@ int specificMessage(int socket){
          perror("send error");
          return -1;
       }
+   
+   return 1;
+}
+
+int loginCommand(int socket){
+   if ((send(socket, "LOGIN", 6, 0)) == -1) 
+      {
+         perror("send error");
+         return -1;
+      }
+
+   string username;
+   string password;
+
+   cout << "User ID: ";
+   getline(cin, username);
+   if ((send(socket, username.c_str(), username.size(), 0)) == -1) 
+      {
+         perror("send error");
+         return -1;
+      }
+
+   /*Hide user input*/
+   termios oldt;
+   tcgetattr(STDIN_FILENO, &oldt);
+   termios newt = oldt;
+   newt.c_lflag &= ~ECHO;
+   tcsetattr(STDIN_FILENO, TCSANOW, &newt); // Hides
+   cout << "User password (hidden): "<<endl;
+   getline(cin, password);
+   if ((send(socket, password.c_str(), password.size(), 0)) == -1) 
+      {
+         perror("send error");
+         return -1;
+      }
+   tcsetattr(STDIN_FILENO, TCSANOW, &oldt); // return to display
    
    return 1;
 }
