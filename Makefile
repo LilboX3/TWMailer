@@ -31,10 +31,10 @@ clean:
 	${CC} ${CFLAGS} -o obj/myclient.o myclient.cpp -c
 
 ./obj/myserver.o: myserver.cpp
-	${CC} ${CFLAGS} -o obj/myserver.o myserver.cpp -c 
+	${CC} ${CFLAGS} -o obj/myserver.o myserver.cpp -c
 
 ./twmailer-server: ./obj/myserver.o
-	${CC} ${CFLAGS} -o twmailer-server obj/myserver.o
+	${CC} ${CFLAGS} -o twmailer-server obj/myserver.o -lldap -llber
 
 ./twmailer-client: ./obj/myclient.o
-	${CC} ${CFLAGS} -o twmailer-client obj/myclient.o
+	${CC} ${CFLAGS} -o twmailer-client obj/myclient.o -lldap -llber

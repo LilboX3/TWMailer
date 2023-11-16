@@ -13,6 +13,8 @@
 #include <fstream>
 #include <chrono>
 #include <thread>
+#define LDAP_DEPRECATED 1
+#include <ldap.h>
 
 using namespace std;
 
@@ -27,6 +29,16 @@ int abortRequested = 0;
 int create_socket = -1;
 int new_socket = -1;
 string mailSpool;
+
+///////////////////////////////////////////////////////////////////////////////
+
+const char *LDAP_SERVER = "ldap.technikum.wien.at";
+//const int LDAP_PORT = 389;
+const char *LDAP_SEARCH_BASE = "dc=technikum-wien,dc=at";
+const int MAX_LOGIN_ATTEMPTS = 3;
+const int BLACKLIST_DURATION = 60;
+int loginAttempts = 0;
+int connectLdap(string username, string password);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -661,4 +673,33 @@ int processDel(int client_socket) {
    }
 
    return -1;
+}
+
+int connectLdap(string username, string password){
+   LDAP *ld;
+
+   //Initializes session with an LDAP server, returns LDAP structure 
+   if((ld=ldap_init(LDAP_SERVER, LDAP_PORT))==NULL){
+      cerr << "Error in ldap_init";
+      return -1;
+   }
+
+   //username mit search base verbinden, spezifischer distinguished name!
+   char dn[256];
+   sprintf(dn, "uid=%s,%s", username.c_str(), LDAP_SEARCH_BASE);
+   
+   if(ldap_simple_bind_s(ld, dn, password.c_str())!=LDAP_SUCCESS){
+      if(loginAttempts==MAX_LOGIN_ATTEMPTS){
+         // TODO: idk do something no more login
+         cerr << "Too many login attempts";
+         return -1;
+      }
+      loginAttempts+=1;
+      cerr << "Authentication failed" ;
+      return -1;
+   }
+
+   cout << "LDAP bind as "<< username << " was successful!"<<endl;
+
+   return 0;
 }
