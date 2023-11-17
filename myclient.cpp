@@ -210,15 +210,6 @@ int sendCommand(int socket){
          perror("send error");
          return -1;
       }
-
-   string sender;
-   cout << "Sender: ";
-   getline(cin, sender);
-   if ((send(socket, sender.c_str(), sender.size(), 0)) == -1) 
-      {
-         perror("send error");
-         return -1;
-      }
    
    string receiver;
    cout << "Receiver: ";
@@ -265,15 +256,6 @@ int listCommand(int socket){
          return -1;
       }
    
-   string username;
-   cout << "Username: ";
-   getline(cin, username);
-   if ((send(socket, username.c_str(), username.size(), 0)) == -1) 
-      {
-         perror("send error");
-         return -1;
-      }
-
    return 1;
 }
 
@@ -306,15 +288,6 @@ int delCommand(int socket){
 }
 
 int specificMessage(int socket){
-   string username;
-   cout << "Username: ";
-   getline(cin, username);
-   if ((send(socket, username.c_str(), username.size(), 0)) == -1) 
-      {
-         perror("send error");
-         return -1;
-      }
-   
    string msgNumber;
    cout << "Number of message: ";
    getline(cin, msgNumber);

@@ -33,12 +33,14 @@ string mailSpool;
 ///////////////////////////////////////////////////////////////////////////////
 
 const char *LDAP_SERVER = "ldap://ldap.technikum-wien.at:389";
-const char *LDAP_SEARCH_BASE = "dc=technikum-wien,dc=at";
+const char *LDAP_SEARCH_BASE = "ou=people,dc=technikum-wien,dc=at";
 const int MAX_LOGIN_ATTEMPTS = 3;
 const int BLACKLIST_DURATION = 60;
 int loginAttempts = 0;
 int connectLdap(int client_socket);
 int isLoggedIn = 0;
+int isBlocked = 0;
+string currentUser = "";
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -260,31 +262,43 @@ void *clientCommunication(void *data)
 
       printf("Message received: %s\n", buffer); // ignore error
 
-
+      cout << "Logged In: "<<to_string(isLoggedIn)<<endl;
       //Not logged in: can't access
       if(!isLoggedIn){
          //Client must login first
             if(strcmp(buffer, "LOGIN")==0){
-               if(connectLdap(*current_socket)==-1){
-                     if(send(*current_socket, "<< ERR", 7, 0) == -1)
+               if(loginAttempts==MAX_LOGIN_ATTEMPTS){
+                  // TODO: idk do something no more login
+                  cerr << "Too many login attempts! 1 Minute blacklist"<< endl;
+                  isBlocked = 1;
+                  if(send(*current_socket, "<< ERR", 7, 0) == -1)
                      {
                         perror("send answer failed");
                         return NULL;
                      }
                }
-               isLoggedIn = 1;
-               // SEND login message
-               string welcome = "You are now logged in!\r\n Please enter a command SEND, LIST, READ, DEL, QUIT\n";
-               if (send(*current_socket, welcome.c_str(), strlen(welcome.c_str()), 0) == -1)
-                  {
-                     perror("send failed");
-                     return NULL;
-                  }
-               if (send(*current_socket, "<< OK", 6, 0) == -1)
+               else if(connectLdap(*current_socket)==-1){
+                     if(send(*current_socket, "<< ERR", 7, 0) == -1)
                      {
                         perror("send answer failed");
                         return NULL;
                      }
+               } else {
+                  isLoggedIn = 1;
+                  // SEND login message
+                  string welcome = "You are now logged in as "+currentUser+"!\r\n Please enter a command SEND, LIST, READ, DEL, QUIT\n";
+                  if (send(*current_socket, welcome.c_str(), strlen(welcome.c_str()), 0) == -1)
+                     {
+                        perror("send failed");
+                        return NULL;
+                     }
+                  if (send(*current_socket, "<< OK", 6, 0) == -1)
+                        {
+                           perror("send answer failed");
+                           return NULL;
+                        }
+               }
+               
             } else {
                //Must login first message
                if (send(*current_socket, "<< LOGIN FIRST", 15, 0) == -1)
@@ -360,6 +374,11 @@ void *clientCommunication(void *data)
          else if(strcmp(buffer, "QUIT")==0){
             cout << "Client is quitting" <<endl;
             abortRequested = 1;//handled in signalHandler
+            currentUser = "";
+            isLoggedIn = 0;
+            isBlocked = 0;
+            loginAttempts = 0;
+            
          }
          else if(strcmp(buffer, "LOGIN")==0){ //already logged In!
             if (send(*current_socket, "<< ERR", 7, 0) == -1) {
@@ -439,12 +458,7 @@ int processSend(int client_socket){
    ifstream file;
    
    char buffer[BUF];
-   string sender, receiver, subject, message;
-
-   //Get sender of message
-   recv(client_socket, buffer, sizeof(buffer), 0);
-   sender = buffer;
-   memset(buffer, 0, BUF);
+   string receiver, subject, message;
 
    //Get receiver of message
    recv(client_socket, buffer, sizeof(buffer), 0);
@@ -468,11 +482,11 @@ int processSend(int client_socket){
       memset(buffer, 0, BUF);
    }
 
-   if(writeUserFile(receiver, sender, subject, message)==-1){
+   if(writeUserFile(receiver, currentUser, subject, message)==-1){
       return -1;
    }
 
-   cout << "Message from: "+ sender + " to: "+ receiver + "\nSubject: "+subject+"\n Message: "+message<< endl;
+   cout << "Message from: "+ currentUser + " to: "+ receiver + "\nSubject: "+subject+"\n Message: "+message<< endl;
    return 1;    
 }
 
@@ -514,18 +528,10 @@ int writeUserFile(string username, string sender, string subject, string message
 // ./twmailer-client 127.0.0.1 1234 port kann alles sein muss einfach nur matchen
 
 int processList(int client_socket) {
-   char buffer[BUF];
-   string username;
-
-   //Get sender of message
-   recv(client_socket, buffer, sizeof(buffer), 0);
-   username = buffer;
-   memset(buffer, 0, BUF);
-
-   printf("Listing messages for user: %s\n", username.c_str());
+   printf("Listing messages for user: %s\n", currentUser.c_str());
 
    // Open the user's file and read messages
-   string userFilename = "./" + mailSpool + "/" + username;
+   string userFilename = "./" + mailSpool + "/" + currentUser;
    ifstream userFile(userFilename.c_str());
 
    if (userFile.is_open()) {
@@ -556,7 +562,7 @@ int processList(int client_socket) {
       }
       userFile.close();
    } else {
-      printf("User file not found for user: %s\n", username.c_str());
+      printf("User file not found for user: %s\n", currentUser.c_str());
       return -1;
    }
    return 0;
@@ -564,12 +570,8 @@ int processList(int client_socket) {
 
 int processRead(int client_socket){
    char buffer[BUF];
-   string username, messageNr;
+   string messageNr;
 
-   //Get username
-   recv(client_socket, buffer, sizeof(buffer), 0);
-   username = buffer;
-   memset(buffer, 0, BUF);
    //Get number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    messageNr = buffer;
@@ -583,7 +585,7 @@ int processRead(int client_socket){
    }
    int messageToFind = converted;
    //Open file of user
-   string userFilename = "./" + mailSpool + "/" + username;
+   string userFilename = "./" + mailSpool + "/" + currentUser;
    cout << "Trying to find: " << userFilename << endl;
    ifstream userFile(userFilename.c_str());
    if (userFile.is_open()) {
@@ -623,7 +625,7 @@ int processRead(int client_socket){
       return -1;
       userFile.close();
    } else {
-      printf("User file not found for user: %s\n", username.c_str());
+      printf("User file not found for user: %s\n", currentUser.c_str());
       return -1;  
    }
 
@@ -632,12 +634,8 @@ int processRead(int client_socket){
 
 int processDel(int client_socket) {
    char buffer[BUF];
-   string username, messageNr;
+   string messageNr;
 
-   // Gets username
-   recv(client_socket, buffer, sizeof(buffer), 0);
-   username = buffer;
-   memset(buffer, 0, BUF);
    // Get number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
    messageNr = buffer;
@@ -651,12 +649,12 @@ int processDel(int client_socket) {
    }
    int messageToDelete = converted;
    // Opens file of user
-   string userFilename = "./" + mailSpool + "/" + username;
+   string userFilename = "./" + mailSpool + "/" + currentUser;
    cout << "Trying to find: " << userFilename << endl;
    ifstream userFile(userFilename.c_str());
    if (userFile.is_open()) {
       // Creates a temporary file to rewrite the user's file
-      string tempFilename = "./" + mailSpool + "/temp_" + username;
+      string tempFilename = "./" + mailSpool + "/temp_" + currentUser;
       ofstream tempFile(tempFilename.c_str());
 
       if (tempFile.is_open()) {
@@ -703,7 +701,7 @@ int processDel(int client_socket) {
          }
       }
    } else {
-      printf("User file not found for user: %s\n", username.c_str());
+      printf("User file not found for user: %s\n", currentUser.c_str());
       return -1;
    }
 
@@ -762,11 +760,6 @@ int connectLdap(int client_socket){
    cout << dn << endl;
 
    if(ldap_simple_bind_s(ld, dn, password.c_str())!=LDAP_SUCCESS){
-      if(loginAttempts==MAX_LOGIN_ATTEMPTS){
-         // TODO: idk do something no more login
-         cerr << "Too many login attempts"<< endl;
-         return -1;
-      }
       loginAttempts+=1;
       cerr << "Authentication failed" << endl;
       ldap_unbind_ext_s(ld, NULL, NULL);
@@ -774,6 +767,7 @@ int connectLdap(int client_socket){
    }
 
    cout << "LDAP bind as "<< username << " was successful!"<<endl;
+   currentUser = username;
    ldap_unbind_ext_s(ld, NULL, NULL);
    return 0;
 }
