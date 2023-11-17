@@ -39,7 +39,6 @@ const int BLACKLIST_DURATION = 60;
 int loginAttempts = 0;
 int connectLdap(int client_socket);
 int isLoggedIn = 0;
-int isBlocked = 0;
 string currentUser = "";
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -262,22 +261,12 @@ void *clientCommunication(void *data)
 
       printf("Message received: %s\n", buffer); // ignore error
 
-      cout << "Logged In: "<<to_string(isLoggedIn)<<endl;
+      cout << "Log in attempts: "<<to_string(loginAttempts)<<endl;
       //Not logged in: can't access
       if(!isLoggedIn){
          //Client must login first
             if(strcmp(buffer, "LOGIN")==0){
-               if(loginAttempts==MAX_LOGIN_ATTEMPTS){
-                  // TODO: idk do something no more login
-                  cerr << "Too many login attempts! 1 Minute blacklist"<< endl;
-                  isBlocked = 1;
-                  if(send(*current_socket, "<< ERR", 7, 0) == -1)
-                     {
-                        perror("send answer failed");
-                        return NULL;
-                     }
-               }
-               else if(connectLdap(*current_socket)==-1){
+               if(connectLdap(*current_socket)==-1){
                      if(send(*current_socket, "<< ERR", 7, 0) == -1)
                      {
                         perror("send answer failed");
@@ -376,7 +365,6 @@ void *clientCommunication(void *data)
             abortRequested = 1;//handled in signalHandler
             currentUser = "";
             isLoggedIn = 0;
-            isBlocked = 0;
             loginAttempts = 0;
             
          }
@@ -388,8 +376,6 @@ void *clientCommunication(void *data)
          }
          
       }
-      
-
       
 
    } while (!abortRequested);
@@ -459,6 +445,7 @@ int processSend(int client_socket){
    
    char buffer[BUF];
    string receiver, subject, message;
+   memset(buffer, 0, BUF);
 
    //Get receiver of message
    recv(client_socket, buffer, sizeof(buffer), 0);
@@ -509,13 +496,14 @@ int createMailSpool(string dirName){
 int writeUserFile(string username, string sender, string subject, string message){
    string filename = username;
    string filepath = "./"+mailSpool+"/"+username;
+   cout << "FILENAME IS-->"<<filepath<<endl;
    ofstream file;
    file.open(filepath, ios::app);
    if(!file){
       return -1;
    }
 
-   file << "\nMESSAGE\n";
+   file << "\n////////////\n";
    file << sender+"\n";
    file << subject+"\n";
    file << message+"\n";
@@ -539,7 +527,7 @@ int processList(int client_socket) {
       int messageNumber = 0; // Track the message number
       while (getline(userFile, line)) {
 
-         if (line == "MESSAGE") {
+         if (line == "////////////") {
                string sender, subject, message;
                getline(userFile, sender);
                getline(userFile, subject);
@@ -594,7 +582,7 @@ int processRead(int client_socket){
       string line;
       while(getline(userFile, line)){
          //Message found
-         if(line=="MESSAGE"&&messageNumber==messageToFind){
+         if(line=="////////////"&&messageNumber==messageToFind){
             cout << "FOUND MESSAGE NUMBER "<<messageToFind << endl;
             string sender, subject, message;
                getline(userFile, sender);
@@ -615,7 +603,7 @@ int processRead(int client_socket){
                send(client_socket, message.c_str(), message.size(), 0);
                return 0;
 
-         } else if(line=="MESSAGE") {
+         } else if(line=="////////////") {
             messageNumber++;
          }
       }
@@ -664,7 +652,7 @@ int processDel(int client_socket) {
          bool inMessage = false;
 
          while (getline(userFile, line)) {
-               if (line == "MESSAGE") {
+               if (line == "////////////") {
                   inMessage = true;
                   if (messageNumber == messageToDelete) {
                      // Skips this message if it matches the one to be deleted
@@ -719,12 +707,10 @@ int connectLdap(int client_socket){
    memset(buffer, 0, BUF);
    // Gets username
    recv(client_socket, buffer, sizeof(buffer), 0);
-   cout << buffer << endl;
    username = buffer;
    memset(buffer, 0, BUF);
    // Get number of message
    recv(client_socket, buffer, sizeof(buffer), 0);
-   cout << buffer << endl;
    password = buffer;
 
    //initialize connection to LDAP server
@@ -762,6 +748,18 @@ int connectLdap(int client_socket){
    if(ldap_simple_bind_s(ld, dn, password.c_str())!=LDAP_SUCCESS){
       loginAttempts+=1;
       cerr << "Authentication failed" << endl;
+      if(loginAttempts==MAX_LOGIN_ATTEMPTS){
+         cout << "3rd login attempt!"<< endl;
+            strcpy(buffer, "Too many login attempts! You are blacklisted for 1 Minute\n");
+            if (send(client_socket, buffer, strlen(buffer), 0) == -1)
+            {
+               perror("send failed");
+               return -1;
+            }
+            std::this_thread::sleep_for(std::chrono::minutes(1));
+            loginAttempts = 0;
+         return -1;
+      }
       ldap_unbind_ext_s(ld, NULL, NULL);
       return -1;
    }
