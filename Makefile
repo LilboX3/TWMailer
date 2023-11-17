@@ -28,10 +28,10 @@ clean:
 	rm -f twmailer-*
 
 ./obj/myclient.o: myclient.cpp
-	${CC} ${CFLAGS} -o obj/myclient.o myclient.cpp -c
+	${CC} ${CFLAGS} -o obj/myclient.o myclient.cpp -c -lldap -llber
 
 ./obj/myserver.o: myserver.cpp
-	${CC} ${CFLAGS} -o obj/myserver.o myserver.cpp -c
+	${CC} ${CFLAGS} -o obj/myserver.o myserver.cpp -c -lldap -llber
 
 ./twmailer-server: ./obj/myserver.o
 	${CC} ${CFLAGS} -o twmailer-server obj/myserver.o -lldap -llber
