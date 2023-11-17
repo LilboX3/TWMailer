@@ -32,7 +32,7 @@ string mailSpool;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-const char *LDAP_SERVER = "ldap.technikum.wien.at";
+const char *LDAP_SERVER = "ldap://ldap.technikum-wien.at:389";
 const char *LDAP_SEARCH_BASE = "dc=technikum-wien,dc=at";
 const int MAX_LOGIN_ATTEMPTS = 3;
 const int BLACKLIST_DURATION = 60;
@@ -729,13 +729,14 @@ int connectLdap(int client_socket){
    cout << buffer << endl;
    password = buffer;
 
-      rc = ldap_initialize(&ld, "ldap://ldap.technikum-wien.at:389");
+   //initialize connection to LDAP server
+      rc = ldap_initialize(&ld, LDAP_SERVER);
       if (rc != LDAP_SUCCESS)
       {
          fprintf(stderr, "ldap_init failed\n");
          return EXIT_FAILURE;
       }
-      printf("connected to LDAP server %s\n", "ldap://ldap.technikum-wien.at:389");
+      printf("connected to LDAP server %s\n", LDAP_SERVER);
 
       //  Set the version to 3.0 (default is 2.0).
    int returnCode = ldap_set_option(ld, LDAP_OPT_PROTOCOL_VERSION, &ldapVersion);
@@ -744,6 +745,15 @@ int connectLdap(int client_socket){
    else
    {
       printf("SetOption Error:%0X\n", returnCode);
+   }
+
+   //start a secure connection
+   rc = ldap_start_tls_s(ld,NULL,NULL);
+   if (rc != LDAP_SUCCESS)
+   {
+      fprintf(stderr, "ldap_start_tls_s(): %s\n", ldap_err2string(rc));
+      ldap_unbind_ext_s(ld, NULL, NULL);
+      return -1;
    }
 
    //username mit search base verbinden, spezifischer distinguished name!
@@ -759,10 +769,11 @@ int connectLdap(int client_socket){
       }
       loginAttempts+=1;
       cerr << "Authentication failed" << endl;
+      ldap_unbind_ext_s(ld, NULL, NULL);
       return -1;
    }
 
    cout << "LDAP bind as "<< username << " was successful!"<<endl;
-   ldap_unbind(ld);
+   ldap_unbind_ext_s(ld, NULL, NULL);
    return 0;
 }

@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 #include <termios.h> // To use 'termios' and 'tcsetattr'
+#include <ldap.h>
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
