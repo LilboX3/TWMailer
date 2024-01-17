@@ -1,3 +1,5 @@
 lint:
+  stage: lint
   script:
-    - lint-command-here
+    - npm install eslint --quiet
+    - npx eslint .
