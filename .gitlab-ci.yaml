@@ -1,0 +1,3 @@
+lint:
+  script:
+    - lint-command-here
