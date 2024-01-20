@@ -6,7 +6,8 @@ stages:
 
 variables:
   DOCKER_IMAGE_NAME: "myserver"
-  CI_REGISTRY_IMAGE: ""
+  CI_REGISTRY_IMAGE: "counter-image"
+  GTEST_DIR: "./googletest"
 
 build:
   stage: build
@@ -23,13 +24,23 @@ lint:
 test:
   stage: test
   script:
-    - test-command-here
+    - apt-get update -qy
+    - apt-get install -y cmake g++
+    - mkdir build
+    - cd build
+    - cmake $GTEST_DIR
+    - make
+    - cd ..
+    - g++ -o mytests test_myserver.cpp -lgtest -lgtest_main -pthread
+    - ./mytests
 
 deploy_dev:
   stage: deploy
   script:
     - docker tag $DOCKER_IMAGE_NAME $CI_REGISTRY_IMAGE:develop
     - docker push $CI_REGISTRY_IMAGE:develop
+  only:
+    - develop # trigger for develop branch
 
 deploy_prod:
   stage: deploy
@@ -37,5 +48,4 @@ deploy_prod:
     - docker tag $DOCKER_IMAGE_NAME $CI_REGISTRY_IMAGE:latest
     - docker push $CI_REGISTRY_IMAGE:latest
   only:
-    - develop
-    - master  # trigger only for master and develop branch
+    - master  # trigger only for master branch
