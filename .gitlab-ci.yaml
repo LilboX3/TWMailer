@@ -1,5 +1,56 @@
-lint:
-  stage: lint
+stages:
+  - infrastructure
+  - tests
+
+variables:
+  VPC_CIDR: "192.168.1.0/24"
+  PUBLIC_SUBNET_CIDR: "192.168.1.0/25"
+  DNS1_IP: "192.168.1.2"
+  DNS2_IP: "192.168.1.3"
+  LDAP_IP: "192.168.1.4"
+  GITLAB_IP: "192.168.1.5"
+  GITLAB_RUNNER_IP: "192.168.1.6"
+
+before_script:
+  - echo "Setup infrastructure..."
+
+infrastructure:
+  stage: infrastructure
   script:
-    - npm install eslint --quiet
-    - npx eslint .
+    - echo "Setting up Primary DNS..."
+    - dig +short server-in-network.domain-name @$PRIMARY_DNS_IP
+    - nslookup private-IP-of-dns-server @$PRIMARY_DNS_IP
+
+    - echo "Setting up GitLab Server..."
+    - git clone your-repository-link
+    - cd your-repository
+    - sudo touch new_file.txt
+    - git add .
+    - git commit -m "Testing GitLab"
+    - git push origin main
+
+tests_dns:
+  stage: tests
+  script:
+    # DNS tests
+    - dig @dns1.local your-domain.com
+    - nslookup your-domain.com dns2.local
+
+tests_ldap:
+  stage: tests
+  script:
+    # LDAP tests
+    - ldapsearch -H ldaps://ldap.local -D "cn=admin,dc=example,dc=com" -W
+    - ldapadd -H ldaps://ldap.local -D "cn=admin,dc=example,dc=com" -W -f your-ldif-file.ldif
+
+tests_gitlab:
+  stage: tests
+  script:
+    # GitLab tests
+    - git clone https://gitlab.local/your-project.git
+    - cd your-project
+    - touch test-file.txt
+    - git add test-file.txt
+    - git commit -m "Add test file"
+    - git push origin master
+    - git pull origin master
