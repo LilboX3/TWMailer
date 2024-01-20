@@ -1,56 +1,41 @@
 stages:
-  - infrastructure
-  - tests
+  - build
+  - lint
+  - test
+  - deploy
 
 variables:
-  VPC_CIDR: "192.168.1.0/24"
-  PUBLIC_SUBNET_CIDR: "192.168.1.0/25"
-  DNS1_IP: "192.168.1.2"
-  DNS2_IP: "192.168.1.3"
-  LDAP_IP: "192.168.1.4"
-  GITLAB_IP: "192.168.1.5"
-  GITLAB_RUNNER_IP: "192.168.1.6"
+  DOCKER_IMAGE_NAME: "myserver"
+  CI_REGISTRY_IMAGE: ""
 
-before_script:
-  - echo "Setup infrastructure..."
-
-infrastructure:
-  stage: infrastructure
+build:
+  stage: build
   script:
-    - echo "Setting up Primary DNS..."
-    - dig +short server-in-network.domain-name @$PRIMARY_DNS_IP
-    - nslookup private-IP-of-dns-server @$PRIMARY_DNS_IP
+    - docker build -t $DOCKER_IMAGE_NAME .
 
-    - echo "Setting up GitLab Server..."
-    - git clone your-repository-link
-    - cd your-repository
-    - sudo touch new_file.txt
-    - git add .
-    - git commit -m "Testing GitLab"
-    - git push origin main
-
-tests_dns:
-  stage: tests
+lint:
+  stage: lint
+  image: node:latest
   script:
-    # DNS tests
-    - dig @dns1.local your-domain.com
-    - nslookup your-domain.com dns2.local
+    - npm install
+    - npx eslint .
 
-tests_ldap:
-  stage: tests
+test:
+  stage: test
   script:
-    # LDAP tests
-    - ldapsearch -H ldaps://ldap.local -D "cn=admin,dc=example,dc=com" -W
-    - ldapadd -H ldaps://ldap.local -D "cn=admin,dc=example,dc=com" -W -f your-ldif-file.ldif
+    - test-command-here
 
-tests_gitlab:
-  stage: tests
+deploy_dev:
+  stage: deploy
   script:
-    # GitLab tests
-    - git clone https://gitlab.local/your-project.git
-    - cd your-project
-    - touch test-file.txt
-    - git add test-file.txt
-    - git commit -m "Add test file"
-    - git push origin master
-    - git pull origin master
+    - docker tag $DOCKER_IMAGE_NAME $CI_REGISTRY_IMAGE:develop
+    - docker push $CI_REGISTRY_IMAGE:develop
+
+deploy_prod:
+  stage: deploy
+  script:
+    - docker tag $DOCKER_IMAGE_NAME $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE:latest
+  only:
+    - develop
+    - master  # trigger only for master and develop branch
