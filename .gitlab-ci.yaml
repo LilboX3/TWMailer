@@ -16,10 +16,9 @@ build:
 
 lint:
   stage: lint
-  image: node:latest
+  image: docker.io/cppcheck/cppcheck:latest # use image to check cpp code!
   script:
-    - npm install
-    - npx eslint .
+    - cppcheck --enable=all --error-exitcode=1 myserver.cpp
 
 test:
   stage: test
